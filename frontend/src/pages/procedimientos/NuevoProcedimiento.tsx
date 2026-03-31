@@ -301,7 +301,7 @@ export function NuevoProcedimiento() {
               >
                 <option value="">Seleccionar asesor</option>
                 {asesores.map((at) => (
-                  <option key={at.id} value={at.id}>
+                  <option key={at._id} value={at._id}>
                     {at.nombre} {at.apellidos}
                   </option>
                 ))}
@@ -316,9 +316,9 @@ export function NuevoProcedimiento() {
               >
                 <option value="">Sin suplente</option>
                 {asesores
-                  .filter((at) => at.id !== asesorTitular)
+                  .filter((at) => at._id !== asesorTitular)
                   .map((at) => (
-                    <option key={at.id} value={at.id}>
+                    <option key={at._id} value={at._id}>
                       {at.nombre} {at.apellidos}
                     </option>
                   ))}

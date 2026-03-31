@@ -245,7 +245,7 @@ function ModalEditarUsuario({
     setGuardando(true)
     setErrorMsg(null)
     try {
-      await usuariosService.actualizar(usuario.id, {
+      await usuariosService.actualizar(usuario._id, {
         ...form,
         direccionGeneral: form.direccionGeneral || undefined,
       })
@@ -360,7 +360,7 @@ function ModalResetPassword({
     setGuardando(true)
     setErrorMsg(null)
     try {
-      await usuariosService.resetPassword(usuario.id, contrasena)
+      await usuariosService.resetPassword(usuario._id, contrasena)
       onGuardado()
     } catch (err) {
       setErrorMsg(mensajeDeError(err))

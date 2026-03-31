@@ -13,7 +13,7 @@ export type Rol =
 // Entidades base
 // -------------------------------------------------------
 export interface UsuarioResumen {
-  id: string
+  _id: string
   nombre: string
   apellidos: string
   correo: string

@@ -88,7 +88,7 @@ async function construirResumen(filtroProcedimientos) {
           as: 'dg',
         },
       },
-      { $unwind: { path: '$dg', preserveNullAndEmpty: true } },
+      { $unwind: { path: '$dg', preserveNullAndEmptyArrays: true } },
       {
         $project: {
           _id: 1,

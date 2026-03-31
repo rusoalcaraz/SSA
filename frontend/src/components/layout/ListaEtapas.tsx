@@ -68,8 +68,8 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
   // Determina permisos de este usuario sobre el procedimiento
   const esAT =
     tieneRol('asesor_tecnico') &&
-    (procedimiento.asesorTitular?.id === usuario?.id ||
-      procedimiento.asesorSuplente?.id === usuario?.id)
+    (procedimiento.asesorTitular?._id === usuario?.id ||
+      procedimiento.asesorSuplente?._id === usuario?.id)
   const esAC = tieneRol('area_contratante', 'superadmin')
   const esSuperadmin = tieneRol('superadmin')
 

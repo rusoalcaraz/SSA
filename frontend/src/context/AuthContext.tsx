@@ -1,6 +1,7 @@
 import { createContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import type { Rol, UsuarioResumen } from '../types'
 import { authService } from '../services/auth.service'
+import { setAccessToken as setApiToken, clearAccessToken } from '../services/api'
 
 interface AuthState {
   usuario: UsuarioResumen | null
@@ -23,7 +24,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(() => {
     try {
       const guardado = sessionStorage.getItem(STORAGE_KEY)
-      if (guardado) return JSON.parse(guardado)
+      if (guardado) {
+        const parsed: AuthState = JSON.parse(guardado)
+        // Sincronizar el token en memoria del cliente axios al restaurar sesion
+        if (parsed.accessToken) setApiToken(parsed.accessToken)
+        return parsed
+      }
     } catch {
       // sessionStorage no disponible
     }
@@ -41,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (correo: string, contrasena: string) => {
     const { accessToken, usuario } = await authService.login(correo, contrasena)
+    setApiToken(accessToken)
     setState({ accessToken, usuario })
   }, [])
 
@@ -48,11 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authService.logout()
     } finally {
+      clearAccessToken()
       setState({ usuario: null, accessToken: null })
     }
   }, [])
 
   const setAccessToken = useCallback((token: string) => {
+    setApiToken(token)
     setState((prev) => ({ ...prev, accessToken: token }))
   }, [])
 

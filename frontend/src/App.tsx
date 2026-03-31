@@ -14,6 +14,7 @@ import { Cronograma } from './pages/procedimientos/Cronograma'
 import { HojaTrabajo } from './pages/procedimientos/HojaTrabajo'
 import { Entregas } from './pages/procedimientos/Entregas'
 
+import { Reportes } from './pages/Reportes'
 import { Usuarios } from './pages/admin/Usuarios'
 import { Catalogos } from './pages/admin/Catalogos'
 import { DireccionesGenerales } from './pages/admin/DireccionesGenerales'
@@ -58,39 +59,12 @@ export default function App() {
                 >
                   <Route index element={<NuevoProcedimiento />} />
                 </Route>
-                {/* DetalleProcedimiento actua como layout: renderiza header + tabs via <Outlet> */}
+                {/* DetalleProcedimiento actua como layout: renderiza header + tabs via <Outlet context> */}
                 <Route path=":id" element={<DetalleProcedimiento />}>
                   <Route index element={<Navigate to="cronograma" replace />} />
-                  <Route
-                    path="cronograma"
-                    element={
-                      <ProtectedRoute
-                        roles={['superadmin', 'gerencial', 'area_contratante', 'asesor_tecnico', 'dgt']}
-                      />
-                    }
-                  >
-                    <Route index element={<Cronograma />} />
-                  </Route>
-                  <Route
-                    path="hoja-trabajo"
-                    element={
-                      <ProtectedRoute
-                        roles={['superadmin', 'gerencial', 'area_contratante', 'asesor_tecnico', 'dgt']}
-                      />
-                    }
-                  >
-                    <Route index element={<HojaTrabajo />} />
-                  </Route>
-                  <Route
-                    path="entregas"
-                    element={
-                      <ProtectedRoute
-                        roles={['superadmin', 'gerencial', 'area_contratante', 'asesor_tecnico', 'dgt', 'inspeccion']}
-                      />
-                    }
-                  >
-                    <Route index element={<Entregas />} />
-                  </Route>
+                  <Route path="cronograma" element={<Cronograma />} />
+                  <Route path="hoja-trabajo" element={<HojaTrabajo />} />
+                  <Route path="entregas" element={<Entregas />} />
                 </Route>
               </Route>
 
@@ -104,6 +78,16 @@ export default function App() {
                 }
               >
                 <Route index element={<ListaProcedimientos />} />
+              </Route>
+
+              {/* Reportes — superadmin, gerencial, area_contratante */}
+              <Route
+                path="reportes"
+                element={
+                  <ProtectedRoute roles={['superadmin', 'gerencial', 'area_contratante']} />
+                }
+              >
+                <Route index element={<Reportes />} />
               </Route>
 
               {/* Admin — solo superadmin */}
