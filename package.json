@@ -1,0 +1,17 @@
+{
+  "name": "ssa-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Monorepo del Sistema de Seguimiento de Adquisiciones (frontend + backend)",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "sh -c 'npm run dev -w backend & npm run dev -w frontend & wait'",
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "start": "sh -c 'npm run start -w backend & npm run dev -w frontend & wait'",
+    "install:all": "npm install -ws"
+  }
+}
