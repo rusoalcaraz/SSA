@@ -7,6 +7,11 @@ const { crearError } = require('../middleware/errorHandler');
 const { ok, creado } = require('../utils/respuesta');
 const auditLog = require('../services/auditLog.service');
 
+// Escapa caracteres especiales de regex para prevenir ReDoS e inyeccion
+function escaparRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // -------------------------------------------------------
 // GET /api/v1/usuarios
 // -------------------------------------------------------
@@ -22,10 +27,11 @@ async function listar(req, res, next) {
     if (activo !== undefined) filtro.activo = activo === 'true';
     if (dgId) filtro.direccionGeneral = dgId;
     if (q) {
+      const qEscapado = escaparRegex(String(q).slice(0, 100)); // limitar longitud
       filtro.$or = [
-        { nombre: { $regex: q, $options: 'i' } },
-        { apellidos: { $regex: q, $options: 'i' } },
-        { correo: { $regex: q, $options: 'i' } },
+        { nombre: { $regex: qEscapado, $options: 'i' } },
+        { apellidos: { $regex: qEscapado, $options: 'i' } },
+        { correo: { $regex: qEscapado, $options: 'i' } },
       ];
     }
 

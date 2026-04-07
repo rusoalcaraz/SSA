@@ -13,6 +13,10 @@ export function Login() {
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Mensaje de sesion cerrada por inactividad (viene de api.ts via sessionStorage)
+  const cerradaPorInactividad = sessionStorage.getItem('sesion_cerrada_por') === 'inactividad'
+  if (cerradaPorInactividad) sessionStorage.removeItem('sesion_cerrada_por')
+
   function destino() {
     const from = (location.state as { from?: { pathname: string } })?.from?.pathname
     if (from && from !== '/login') return from
@@ -46,6 +50,12 @@ export function Login() {
         {/* Tarjeta */}
         <div className="bg-white rounded-lg shadow-md px-8 py-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-6">Iniciar sesion</h2>
+
+          {cerradaPorInactividad && !error && (
+            <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+              Su sesion se cerro por inactividad. Por favor, inicie sesion nuevamente.
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">

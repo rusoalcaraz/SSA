@@ -36,6 +36,11 @@ const OPCIONES_COOKIE = {
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias en ms
 };
 
+// --- Constantes de seguridad ---
+const MAX_INTENTOS_LOGIN = 5;          // intentos fallidos antes de bloquear
+const BLOQUEO_MS = 15 * 60 * 1000;    // duracion del bloqueo: 15 minutos
+const INACTIVIDAD_MS = 15 * 60 * 1000; // timeout de inactividad: 15 minutos
+
 // --- Controladores ---
 
 /**
@@ -49,10 +54,10 @@ async function login(req, res, next) {
       throw crearError(400, 'DATOS_REQUERIDOS', 'Correo y contrasena son requeridos');
     }
 
-    // Incluir passwordHash y refreshTokens (ambos tienen select:false)
+    // Incluir passwordHash, refreshTokens, intentosFallidos y bloqueadoHasta
     const usuario = await Usuario
       .findOne({ correo: correo.toLowerCase().trim(), activo: true })
-      .select('+passwordHash +refreshTokens');
+      .select('+passwordHash +refreshTokens +intentosFallidos +bloqueadoHasta');
 
     // Mensaje generico para no revelar si el correo existe
     const errorCredenciales = crearError(
@@ -63,8 +68,43 @@ async function login(req, res, next) {
 
     if (!usuario) throw errorCredenciales;
 
+    // Verificar si la cuenta esta temporalmente bloqueada
+    if (usuario.bloqueadoHasta && usuario.bloqueadoHasta > new Date()) {
+      const minutosRestantes = Math.ceil(
+        (usuario.bloqueadoHasta.getTime() - Date.now()) / 60_000
+      );
+      throw crearError(
+        429,
+        'CUENTA_BLOQUEADA',
+        `Cuenta bloqueada temporalmente por multiples intentos fallidos. Intente en ${minutosRestantes} minuto(s).`
+      );
+    }
+
     const contrasenaValida = await usuario.verificarContrasena(contrasena);
-    if (!contrasenaValida) throw errorCredenciales;
+
+    if (!contrasenaValida) {
+      // Incrementar contador de intentos fallidos
+      usuario.intentosFallidos = (usuario.intentosFallidos || 0) + 1;
+
+      if (usuario.intentosFallidos >= MAX_INTENTOS_LOGIN) {
+        usuario.bloqueadoHasta = new Date(Date.now() + BLOQUEO_MS);
+        usuario.intentosFallidos = 0;
+        await usuario.save();
+        throw crearError(
+          429,
+          'CUENTA_BLOQUEADA',
+          `Cuenta bloqueada por ${MAX_INTENTOS_LOGIN} intentos fallidos. Intente en 15 minutos.`
+        );
+      }
+
+      await usuario.save();
+      throw errorCredenciales;
+    }
+
+    // Login exitoso: resetear intentos fallidos
+    usuario.intentosFallidos = 0;
+    usuario.bloqueadoHasta = null;
+    usuario.ultimaActividad = new Date();
 
     const accessToken = generarAccessToken(usuario);
     const refreshToken = generarRefreshToken(usuario._id);
@@ -168,6 +208,21 @@ async function refresh(req, res, next) {
       usuario.refreshTokens = [];
       await usuario.save();
       throw crearError(401, 'REFRESH_REVOCADO', 'Refresh token revocado');
+    }
+
+    // Verificar inactividad: si el usuario no ha interactuado en 15 min, cerrar sesion
+    if (usuario.ultimaActividad) {
+      const inactivo = Date.now() - usuario.ultimaActividad.getTime() > INACTIVIDAD_MS;
+      if (inactivo) {
+        usuario.refreshTokens = [];
+        await usuario.save();
+        res.clearCookie('refreshToken');
+        throw crearError(
+          401,
+          'SESION_INACTIVA',
+          'La sesion expiro por inactividad. Inicie sesion nuevamente.'
+        );
+      }
     }
 
     const nuevoAccessToken = generarAccessToken(usuario);

@@ -1,7 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, checkRole, actualizarActividad } = require('../middleware/auth');
+const { limitarPorUsuario } = require('../middleware/rateLimiters');
 const { uploadObservacion, uploadEntrega, uploadJustificacion } = require('../middleware/upload');
 
 const procCtrl = require('../controllers/procedimientos/procedimientos.controller');
@@ -11,7 +12,7 @@ const entregasCtrl = require('../controllers/procedimientos/entregas.controller'
 const router = Router();
 
 // Todos los endpoints requieren autenticacion
-router.use(verifyToken);
+router.use(verifyToken, actualizarActividad, limitarPorUsuario);
 
 // -------------------------------------------------------
 // Procedimientos principales

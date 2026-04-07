@@ -2,6 +2,11 @@
 
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
+const { Usuario } = require('../models/usuario.model');
+
+// Mapa en memoria para limitar escrituras a BD: userId -> timestamp de ultima actualizacion
+const _actividadCache = new Map();
+const THROTTLE_MS = 60_000; // escribe en BD como maximo una vez por minuto por usuario
 
 const ROLES_VALIDOS = [
   'superadmin',
@@ -88,4 +93,26 @@ function checkRole(rolesPermitidos) {
   };
 }
 
-module.exports = { verifyToken, checkRole, ROLES_VALIDOS };
+/**
+ * Actualiza el campo ultimaActividad del usuario autenticado en BD.
+ * Usa un throttle en memoria para no escribir en cada solicitud.
+ * Debe aplicarse despues de verifyToken en las rutas protegidas.
+ */
+function actualizarActividad(req, res, next) {
+  const userId = req.usuario?.id;
+  if (!userId) return next();
+
+  const ahora = Date.now();
+  const ultimaEscritura = _actividadCache.get(userId) || 0;
+
+  if (ahora - ultimaEscritura > THROTTLE_MS) {
+    _actividadCache.set(userId, ahora);
+    // Fire and forget: no bloquea la respuesta
+    Usuario.findByIdAndUpdate(userId, { ultimaActividad: new Date(ahora) })
+      .catch(() => {}); // ignorar errores para no afectar el flujo
+  }
+
+  next();
+}
+
+module.exports = { verifyToken, checkRole, actualizarActividad, ROLES_VALIDOS };

@@ -67,8 +67,12 @@ api.interceptors.response.use(
       } catch (errRefresh) {
         colaEnEspera.forEach(({ reject }) => reject(errRefresh))
         colaEnEspera = []
-        // Forzar logout
+        // Forzar logout — guardar razon para mostrarla en login
         clearAccessToken()
+        const codigoError = (errRefresh as AxiosError<{ error?: { code?: string } }>)?.response?.data?.error?.code
+        if (codigoError === 'SESION_INACTIVA') {
+          sessionStorage.setItem('sesion_cerrada_por', 'inactividad')
+        }
         window.location.href = '/login'
         return Promise.reject(errRefresh)
       } finally {

@@ -1,12 +1,13 @@
 'use strict';
 
 const { Router } = require('express');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, checkRole, actualizarActividad } = require('../middleware/auth');
+const { limitarPorUsuario } = require('../middleware/rateLimiters');
 const ctrl = require('../controllers/usuarios.controller');
 
 const router = Router();
 
-router.use(verifyToken);
+router.use(verifyToken, actualizarActividad, limitarPorUsuario);
 router.use(checkRole(['superadmin']));
 
 // GET  /api/v1/usuarios             — listar con filtros

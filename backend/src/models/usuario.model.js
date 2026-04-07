@@ -59,6 +59,22 @@ const usuarioSchema = new mongoose.Schema(
       default: [],
       select: false,
     },
+    // Seguimiento de actividad para timeout de inactividad (15 min)
+    ultimaActividad: {
+      type: Date,
+      default: null,
+    },
+    // Control de intentos fallidos de inicio de sesion (bloqueo por fuerza bruta)
+    intentosFallidos: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    bloqueadoHasta: {
+      type: Date,
+      default: null,
+      select: false,
+    },
   },
   {
     timestamps: true,

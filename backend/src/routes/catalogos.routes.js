@@ -1,7 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, checkRole, actualizarActividad } = require('../middleware/auth');
+const { limitarPorUsuario } = require('../middleware/rateLimiters');
 
 const dgCtrl = require('../controllers/catalogos/direccionesGenerales.controller');
 const bsCtrl = require('../controllers/catalogos/bienesServicios.controller');
@@ -10,7 +11,7 @@ const etapasCtrl = require('../controllers/catalogos/etapas.controller');
 const router = Router();
 
 // Todos los endpoints requieren autenticacion
-router.use(verifyToken);
+router.use(verifyToken, actualizarActividad, limitarPorUsuario);
 
 // -------------------------------------------------------
 // Direcciones Generales — /api/v1/catalogos/direcciones-generales
