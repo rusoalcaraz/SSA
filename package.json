@@ -12,6 +12,10 @@
     "dev:backend": "npm run dev -w backend",
     "dev:frontend": "npm run dev -w frontend",
     "start": "sh -c 'npm run start -w backend & npm run dev -w frontend & wait'",
-    "install:all": "npm install -ws"
+    "install:all": "npm install -ws",
+    "dev:ps": "sh -c 'lsof -nP -iTCP -sTCP:LISTEN | grep -E \":(3000|4000)\\\\b\" || true'",
+    "dev:stop": "sh -c 'for port in 3000 4000; do P=$(lsof -nP -iTCP:$port -sTCP:LISTEN -t 2>/dev/null); if [ -n \"$P\" ]; then echo $P | xargs kill; fi; done; echo listo'",
+    "dev:reset": "sh -c 'npm run dev:stop; npm run dev'",
+    "dev:where": "sh -c 'for p in $(lsof -nP -iTCP -sTCP:LISTEN | grep -E \":(3000|4000)\\\\b\" | awk '\\''{print $2}'\\'' | sort -u); do echo PID:$p; ps -o pid,ppid,tty,start,command -p $p; done'"
   }
 }

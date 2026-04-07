@@ -77,7 +77,7 @@ export function DetalleProcedimiento() {
             <div className="flex items-center gap-2 flex-wrap mb-1">
               {procedimiento.urgente && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">
-                  URGENTE
+                  TIEMPOS REDUCIDOS
                 </span>
               )}
               <span className="text-xs text-gray-400 font-mono">
@@ -148,10 +148,10 @@ export function DetalleProcedimiento() {
           </div>
         </dl>
 
-        {/* Justificacion urgente */}
+        {/* Justificacion de tiempos reducidos */}
         {procedimiento.urgente && procedimiento.justificacionUrgencia && (
           <div className="mt-4 px-3 py-2.5 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
-            <span className="font-medium">Justificacion de urgencia: </span>
+            <span className="font-medium">Justificacion de tiempos reducidos: </span>
             {procedimiento.justificacionUrgencia}
           </div>
         )}

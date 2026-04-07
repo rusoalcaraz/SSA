@@ -69,12 +69,12 @@ function verificarSecuencia(lista, etapa) {
 // -------------------------------------------------------
 async function completar(req, res, next) {
   try {
-    const { procedimiento, etapa, lista } = await resolverSeccion(
+    const { procedimiento, etapa, lista, seccion } = await resolverSeccion(
       req.params.id,
       req.params.etapaId
     );
 
-    if (!esMiProcedimiento(procedimiento, req.usuario.id)) {
+    if (req.usuario.rol !== 'superadmin' && !esMiProcedimiento(procedimiento, req.usuario.id)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'Solo el asesor tecnico asignado puede completar etapas');
     }
 
@@ -90,6 +90,17 @@ async function completar(req, res, next) {
     etapa.completadoEn = new Date();
 
     await procedimiento.save();
+
+    // Si se completó la última etapa del cronograma, avanzar a hoja de trabajo
+    if (seccion === 'cronograma' && procedimiento.etapaActual === 'cronograma') {
+      const todasTerminadas = procedimiento.cronograma.every(
+        (e) => e.estado === 'completado' || e.noAplica
+      );
+      if (todasTerminadas) {
+        procedimiento.etapaActual = 'hoja_de_trabajo';
+        await procedimiento.save();
+      }
+    }
 
     await auditLog.registrar({
       usuarioId: req.usuario.id,
@@ -174,7 +185,7 @@ async function responderFecha(req, res, next) {
 
     const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
 
-    if (!esMiProcedimiento(procedimiento, req.usuario.id)) {
+    if (req.usuario.rol !== 'superadmin' && !esMiProcedimiento(procedimiento, req.usuario.id)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'Solo el asesor tecnico asignado puede responder cambios de fecha');
     }
 
@@ -366,7 +377,7 @@ async function marcarNoAplica(req, res, next) {
       throw crearError(400, 'DATOS_REQUERIDOS', 'El campo noAplica es requerido');
     }
 
-    const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
+    const { procedimiento, etapa, seccion } = await resolverSeccion(req.params.id, req.params.etapaId);
 
     if (etapa.estado === 'completado') {
       throw crearError(409, 'ETAPA_COMPLETADA', 'No se puede modificar una etapa ya completada');
@@ -381,6 +392,17 @@ async function marcarNoAplica(req, res, next) {
     }
 
     await procedimiento.save();
+
+    // Si todas las etapas del cronograma ya están terminadas o no aplican, avanzar
+    if (seccion === 'cronograma' && procedimiento.etapaActual === 'cronograma') {
+      const todasTerminadas = procedimiento.cronograma.every(
+        (e) => e.estado === 'completado' || e.noAplica
+      );
+      if (todasTerminadas) {
+        procedimiento.etapaActual = 'hoja_de_trabajo';
+        await procedimiento.save();
+      }
+    }
 
     await auditLog.registrar({
       usuarioId: req.usuario.id,

@@ -44,22 +44,17 @@ function calcularAlertasEtapas(procedimientos) {
 
 // -------------------------------------------------------
 // Helper: construye el resumen agregado desde un conjunto de procedimientos
+// Regla: si todas las etapas del cronograma estan en 'completado' o marcadas
+// como noAplica=true, se considera la etapaActual efectiva como 'hoja_de_trabajo'
+// (aunque el documento tenga 'cronograma') para efectos del dashboard.
 // -------------------------------------------------------
 async function construirResumen(filtroProcedimientos) {
   const [
-    porEtapaActual,
     porTipoProcedimiento,
     totalUrgentes,
     porDG,
     procedimientosConEtapas,
   ] = await Promise.all([
-    // Conteo por etapaActual
-    Procedimiento.aggregate([
-      { $match: filtroProcedimientos },
-      { $group: { _id: '$etapaActual', total: { $sum: 1 } } },
-      { $sort: { _id: 1 } },
-    ]),
-
     // Conteo por tipo de procedimiento
     Procedimiento.aggregate([
       { $match: filtroProcedimientos },
@@ -101,19 +96,31 @@ async function construirResumen(filtroProcedimientos) {
       { $sort: { total: -1 } },
     ]),
 
-    // Traer etapas para calcular alertas de vencimiento
+    // Traer etapas para calcular alertas de vencimiento y etapa efectiva
     Procedimiento.find(filtroProcedimientos)
-      .select('cronograma.estado cronograma.fechaPlaneada hojaDeTrabajoEtapas.estado hojaDeTrabajoEtapas.fechaPlaneada')
+      .select('etapaActual cronograma.estado cronograma.noAplica cronograma.fechaPlaneada hojaDeTrabajoEtapas.estado hojaDeTrabajoEtapas.fechaPlaneada')
       .lean(),
   ]);
 
-  const totalProcedimientos = porEtapaActual.reduce((acc, e) => acc + e.total, 0);
+  // Calcular etapaActual efectiva por procedimiento
+  const conteoEtapas = {};
+  for (const proc of procedimientosConEtapas) {
+    let etapa = proc.etapaActual || 'cronograma';
+    if (etapa === 'cronograma') {
+      const cron = proc.cronograma || [];
+      const completo = cron.length > 0 && cron.every((e) => e.noAplica === true || e.estado === 'completado');
+      if (completo) etapa = 'hoja_de_trabajo';
+    }
+    conteoEtapas[etapa] = (conteoEtapas[etapa] || 0) + 1;
+  }
+
+  const totalProcedimientos = procedimientosConEtapas.length;
   const { etapasVencidas, etapasProximasAVencer } = calcularAlertasEtapas(procedimientosConEtapas);
 
   return {
     totalProcedimientos,
     totalUrgentes,
-    porEtapaActual: Object.fromEntries(porEtapaActual.map((e) => [e._id, e.total])),
+    porEtapaActual: conteoEtapas,
     porTipoProcedimiento: Object.fromEntries(porTipoProcedimiento.map((e) => [e._id, e.total])),
     porDireccionGeneral: porDG,
     alertas: { etapasVencidas, etapasProximasAVencer },

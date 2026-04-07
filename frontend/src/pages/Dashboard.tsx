@@ -233,15 +233,15 @@ function TarjetaKPI({
 }) {
   return (
     <div
-      className={`bg-white rounded-xl border-t-4 ${alerta ? 'border-red-500' : colorBorde} shadow-sm px-5 py-4 flex items-start gap-4 hover:shadow-md transition-shadow`}
+      className={`bg-white rounded-xl border-t-4 ${alerta ? 'border-red-500' : colorBorde} shadow-sm p-3 xl:px-5 xl:py-4 flex items-start gap-2 xl:gap-4 hover:shadow-md transition-shadow`}
     >
-      <div className={`shrink-0 rounded-xl p-2.5 ${alerta ? 'bg-red-50 text-red-500' : `${colorFondo} ${colorIcono}`}`}>
+      <div className={`shrink-0 rounded-lg xl:rounded-xl p-2 xl:p-2.5 ${alerta ? 'bg-red-50 text-red-500' : `${colorFondo} ${colorIcono}`}`}>
         {icono}
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{titulo}</p>
-        <p className={`text-3xl font-extrabold leading-none ${alerta ? 'text-red-600' : 'text-gray-900'}`}>{valor}</p>
-        {subtitulo && <p className="text-xs text-gray-400 mt-1">{subtitulo}</p>}
+        <p className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wide xl:tracking-wider mb-1 leading-tight">{titulo}</p>
+        <p className={`text-2xl xl:text-3xl font-extrabold leading-none ${alerta ? 'text-red-600' : 'text-gray-900'}`}>{valor}</p>
+        {subtitulo && <p className="text-[10px] xl:text-xs text-gray-400 mt-1 leading-tight">{subtitulo}</p>}
       </div>
     </div>
   )
@@ -356,7 +356,7 @@ export function Dashboard() {
           )}
 
           {/* ── KPI Cards ── */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
             <TarjetaKPI
               titulo="Total procedimientos"
               valor={resumen.totalProcedimientos}

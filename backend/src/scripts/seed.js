@@ -19,6 +19,7 @@ const { Usuario } = require('../models/usuario.model');
 const { CatalogoEtapas } = require('../models/catalogoEtapas.model');
 const { CatalogoBienesServicios } = require('../models/catalogoBienesServicios.model');
 const { DireccionGeneral } = require('../models/direccionGeneral.model');
+const { Procedimiento } = require('../models/procedimiento.model');
 
 // -------------------------------------------------------
 // Datos a sembrar
@@ -210,34 +211,88 @@ async function seedBienesServicios() {
 }
 
 async function seedEtapas() {
-  // Cronograma — upsert por tipo+orden para que re-ejecutar actualice los nombres
-  for (const etapa of ETAPAS_CRONOGRAMA) {
-    const resultado = await CatalogoEtapas.findOneAndUpdate(
-      { tipo: 'cronograma', orden: etapa.orden },
-      { $set: { ...etapa, tipo: 'cronograma', aplicaA: [] } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-    console.log(`  [ok]   Etapa cronograma orden ${etapa.orden}: ${resultado.nombre}`);
+  // Borrar todo el catalogo de etapas y recrear desde cero para garantizar estado limpio
+  await CatalogoEtapas.deleteMany({});
+  console.log('  [clean] Catalogo de etapas limpiado');
+
+  const todasLasEtapas = [
+    ...ETAPAS_CRONOGRAMA.map((e) => ({ ...e, tipo: 'cronograma', aplicaA: [], activa: true })),
+    ...ETAPAS_HOJA_TRABAJO.map((e) => ({ ...e, tipo: 'hoja_de_trabajo', aplicaA: [], activa: true })),
+  ];
+
+  const creadas = await CatalogoEtapas.insertMany(todasLasEtapas);
+  const nCronograma = creadas.filter((e) => e.tipo === 'cronograma').length;
+  const nHT = creadas.filter((e) => e.tipo === 'hoja_de_trabajo').length;
+  console.log(`  [ok]   ${nCronograma} etapas de cronograma creadas`);
+  console.log(`  [ok]   ${nHT} etapas de hoja_de_trabajo creadas`);
+
+  return creadas;
+}
+
+/**
+ * Sincroniza las etapas embebidas en procedimientos existentes con el catalogo actualizado.
+ * - Actualiza nombre y obligatoria (preserva estado, fechas y observaciones).
+ * - Agrega etapas nuevas del catalogo que el procedimiento no tenia.
+ * - Elimina etapas que ya no existen en el catalogo (por orden).
+ */
+async function migrarProcedimientos() {
+  const catalogoCronograma = await CatalogoEtapas.find({ tipo: 'cronograma', activa: true }).sort({ orden: 1 });
+  const catalogoHT = await CatalogoEtapas.find({ tipo: 'hoja_de_trabajo', activa: true }).sort({ orden: 1 });
+
+  const procedimientos = await Procedimiento.find({});
+  if (procedimientos.length === 0) {
+    console.log('  [skip] No hay procedimientos para migrar');
+    return;
   }
 
-  // Eliminar etapas de cronograma que ya no existen (orden > 7)
-  const eliminadas = await CatalogoEtapas.deleteMany({
-    tipo: 'cronograma',
-    orden: { $gt: ETAPAS_CRONOGRAMA.length },
-  });
-  if (eliminadas.deletedCount > 0) {
-    console.log(`  [clean] Eliminadas ${eliminadas.deletedCount} etapas de cronograma obsoletas`);
+  let actualizados = 0;
+
+  for (const proc of procedimientos) {
+    // --- Cronograma ---
+    const nuevoCronograma = catalogoCronograma.map((cat) => {
+      const existente = proc.cronograma.find((e) => e.orden === cat.orden);
+      if (existente) {
+        existente.nombre = cat.nombre;
+        existente.obligatoria = cat.obligatoria;
+        existente.catalogoEtapa = cat._id;
+        return existente;
+      }
+      return {
+        catalogoEtapa: cat._id,
+        nombre: cat.nombre,
+        orden: cat.orden,
+        obligatoria: cat.obligatoria,
+        estado: 'pendiente',
+      };
+    });
+    proc.cronograma = nuevoCronograma;
+    proc.markModified('cronograma');
+
+    // --- Hoja de trabajo ---
+    const nuevaHT = catalogoHT.map((cat) => {
+      const existente = proc.hojaDeTrabajoEtapas.find((e) => e.orden === cat.orden);
+      if (existente) {
+        existente.nombre = cat.nombre;
+        existente.obligatoria = cat.obligatoria;
+        existente.catalogoEtapa = cat._id;
+        return existente;
+      }
+      return {
+        catalogoEtapa: cat._id,
+        nombre: cat.nombre,
+        orden: cat.orden,
+        obligatoria: cat.obligatoria,
+        estado: 'pendiente',
+      };
+    });
+    proc.hojaDeTrabajoEtapas = nuevaHT;
+    proc.markModified('hojaDeTrabajoEtapas');
+
+    await proc.save();
+    actualizados++;
   }
 
-  // Hoja de trabajo — upsert por tipo+orden
-  for (const etapa of ETAPAS_HOJA_TRABAJO) {
-    const resultado = await CatalogoEtapas.findOneAndUpdate(
-      { tipo: 'hoja_de_trabajo', orden: etapa.orden },
-      { $set: { ...etapa, tipo: 'hoja_de_trabajo', aplicaA: [] } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-    console.log(`  [ok]   Etapa hoja_de_trabajo orden ${etapa.orden}: ${resultado.nombre}`);
-  }
+  console.log(`  [ok]   ${actualizados} procedimiento(s) migrado(s) al catalogo actualizado`);
 }
 
 // -------------------------------------------------------
@@ -265,6 +320,9 @@ async function main() {
 
   console.log('\n=== Etapas del catalogo ===');
   await seedEtapas();
+
+  console.log('\n=== Migracion de procedimientos ===');
+  await migrarProcedimientos();
 
   console.log('\nSeed completado.');
   await mongoose.disconnect();

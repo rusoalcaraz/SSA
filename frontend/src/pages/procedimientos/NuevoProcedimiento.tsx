@@ -4,7 +4,7 @@ import { procedimientosService, type CrearProcedimientoPayload } from '../../ser
 import { catalogosService } from '../../services/catalogos.service'
 import { usuariosService } from '../../services/usuarios.service'
 import { mensajeDeError } from '../../services/api'
-import type { DireccionGeneral, BienServicio, UsuarioResumen, TipoProcedimiento } from '../../types'
+import type { DireccionGeneral, BienServicio, UsuarioResumen, TipoProcedimiento, InfoCronograma } from '../../types'
 import { Spinner } from '../../components/ui/Spinner'
 import { ETIQUETA_TIPO_LARGO } from '../../utils/formato'
 
@@ -86,6 +86,23 @@ export function NuevoProcedimiento() {
   const [justificacionTipo, setJustificacionTipo] = useState('')
   const [urgente, setUrgente] = useState(false)
   const [justificacionUrgencia, setJustificacionUrgencia] = useState('')
+  // Datos generales del cronograma
+  const [infoCronograma, setInfoCronograma] = useState<InfoCronograma>({
+    organismo: '',
+    fecha: '',
+    asesorTecnico: '',
+    fuenteFinanciamiento: '',
+    telefonoCelular: '',
+    extensionSatelital: '',
+    nombreProcedimientoContratacion: '',
+    numeroPartidas: undefined,
+    numeroArticulos: undefined,
+    capituloGasto: '',
+    requiereAnualidad: null,
+    numeroOficioPlurianualidad: '',
+    claveCartera: '',
+    numeroClaveCartera: '',
+  })
 
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -138,6 +155,22 @@ export function NuevoProcedimiento() {
       justificacionTipo: justificacionTipo || undefined,
       urgente,
       justificacionUrgencia: urgente ? justificacionUrgencia : undefined,
+      infoCronograma: {
+        organismo: infoCronograma.organismo || undefined,
+        fecha: infoCronograma.fecha || undefined,
+        asesorTecnico: infoCronograma.asesorTecnico || undefined,
+        fuenteFinanciamiento: infoCronograma.fuenteFinanciamiento || undefined,
+        telefonoCelular: infoCronograma.telefonoCelular || undefined,
+        extensionSatelital: infoCronograma.extensionSatelital || undefined,
+        nombreProcedimientoContratacion: infoCronograma.nombreProcedimientoContratacion || undefined,
+        numeroPartidas: infoCronograma.numeroPartidas,
+        numeroArticulos: infoCronograma.numeroArticulos,
+        capituloGasto: infoCronograma.capituloGasto || undefined,
+        requiereAnualidad: infoCronograma.requiereAnualidad,
+        numeroOficioPlurianualidad: infoCronograma.numeroOficioPlurianualidad || undefined,
+        claveCartera: infoCronograma.claveCartera || undefined,
+        numeroClaveCartera: infoCronograma.numeroClaveCartera || undefined,
+      },
     }
 
     try {
@@ -416,10 +449,175 @@ export function NuevoProcedimiento() {
           </Campo>
         </section>
 
-        {/* Seccion: Urgencia */}
+        {/* Seccion: Datos generales del cronograma */}
         <section className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
           <h2 className="text-base font-semibold text-gray-800 pb-1 border-b border-gray-100">
-            Urgencia
+            Datos generales del cronograma
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <Campo label="Organismo">
+              <input
+                type="text"
+                value={infoCronograma.organismo ?? ''}
+                onChange={(e) => setInfoCronograma((v) => ({ ...v, organismo: e.target.value }))}
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="Fecha">
+              <input
+                type="date"
+                value={infoCronograma.fecha ?? ''}
+                onChange={(e) => setInfoCronograma((v) => ({ ...v, fecha: e.target.value }))}
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="Asesor tecnico">
+              <input
+                type="text"
+                value={infoCronograma.asesorTecnico ?? ''}
+                onChange={(e) => setInfoCronograma((v) => ({ ...v, asesorTecnico: e.target.value }))}
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="Fuente de financiamiento">
+              <input
+                type="text"
+                value={infoCronograma.fuenteFinanciamiento ?? ''}
+                onChange={(e) => setInfoCronograma((v) => ({ ...v, fuenteFinanciamiento: e.target.value }))}
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="Telefono celular">
+              <input
+                type="text"
+                value={infoCronograma.telefonoCelular ?? ''}
+                onChange={(e) => setInfoCronograma((v) => ({ ...v, telefonoCelular: e.target.value }))}
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="Extension satelital">
+              <input
+                type="text"
+                value={infoCronograma.extensionSatelital ?? ''}
+                onChange={(e) => setInfoCronograma((v) => ({ ...v, extensionSatelital: e.target.value }))}
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="Nombre del procedimiento">
+              <input
+                type="text"
+                value={infoCronograma.nombreProcedimientoContratacion ?? ''}
+                onChange={(e) =>
+                  setInfoCronograma((v) => ({ ...v, nombreProcedimientoContratacion: e.target.value }))
+                }
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="No. de partidas">
+              <input
+                type="number"
+                min={0}
+                value={infoCronograma.numeroPartidas ?? ''}
+                onChange={(e) =>
+                  setInfoCronograma((v) => ({
+                    ...v,
+                    numeroPartidas: e.target.value ? Number(e.target.value) : undefined,
+                  }))
+                }
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="No. de articulos">
+              <input
+                type="number"
+                min={0}
+                value={infoCronograma.numeroArticulos ?? ''}
+                onChange={(e) =>
+                  setInfoCronograma((v) => ({
+                    ...v,
+                    numeroArticulos: e.target.value ? Number(e.target.value) : undefined,
+                  }))
+                }
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="Capitulo de gasto">
+              <input
+                type="text"
+                value={infoCronograma.capituloGasto ?? ''}
+                onChange={(e) => setInfoCronograma((v) => ({ ...v, capituloGasto: e.target.value }))}
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="Requiere anualidad">
+              <select
+                value={
+                  infoCronograma.requiereAnualidad === null || infoCronograma.requiereAnualidad === undefined
+                    ? ''
+                    : infoCronograma.requiereAnualidad
+                    ? 'si'
+                    : 'no'
+                }
+                onChange={(e) =>
+                  setInfoCronograma((v) => ({
+                    ...v,
+                    requiereAnualidad: e.target.value === '' ? null : e.target.value === 'si',
+                  }))
+                }
+                className={SELECT}
+                disabled={enviando}
+              >
+                <option value="">N/A</option>
+                <option value="si">Si</option>
+                <option value="no">No</option>
+              </select>
+            </Campo>
+            <Campo label="No. oficio plurianualidad">
+              <input
+                type="text"
+                value={infoCronograma.numeroOficioPlurianualidad ?? ''}
+                onChange={(e) =>
+                  setInfoCronograma((v) => ({ ...v, numeroOficioPlurianualidad: e.target.value }))
+                }
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="Clave de cartera">
+              <input
+                type="text"
+                value={infoCronograma.claveCartera ?? ''}
+                onChange={(e) => setInfoCronograma((v) => ({ ...v, claveCartera: e.target.value }))}
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+            <Campo label="No. de clave de cartera">
+              <input
+                type="text"
+                value={infoCronograma.numeroClaveCartera ?? ''}
+                onChange={(e) => setInfoCronograma((v) => ({ ...v, numeroClaveCartera: e.target.value }))}
+                className={INPUT}
+                disabled={enviando}
+              />
+            </Campo>
+          </div>
+        </section>
+
+        {/* Seccion: Tiempos reducidos */}
+        <section className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
+          <h2 className="text-base font-semibold text-gray-800 pb-1 border-b border-gray-100">
+            Tiempos reducidos
           </h2>
 
           <label className="flex items-center gap-3 cursor-pointer">
@@ -434,12 +632,12 @@ export function NuevoProcedimiento() {
               disabled={enviando}
             />
             <span className="text-sm text-gray-700">
-              Marcar este procedimiento como <strong>urgente</strong>
+              Habilitar <strong>tiempos reducidos</strong> para este procedimiento
             </span>
           </label>
 
           {urgente && (
-            <Campo label="Justificacion de urgencia" requerido>
+            <Campo label="Justificacion de tiempos reducidos" requerido>
               <textarea
                 required
                 value={justificacionUrgencia}
@@ -447,7 +645,7 @@ export function NuevoProcedimiento() {
                 rows={2}
                 className={INPUT}
                 disabled={enviando}
-                placeholder="Describa la razon de urgencia..."
+                placeholder="Describa la razon de los tiempos reducidos..."
               />
             </Campo>
           )}

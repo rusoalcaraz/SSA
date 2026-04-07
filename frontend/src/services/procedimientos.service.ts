@@ -5,8 +5,8 @@ import type {
   EtapaActual,
   TipoProcedimiento,
   Paginacion,
-  InfoCronograma,
   InfoHojaDeTrabajo,
+  InfoCronograma,
 } from '../types'
 
 export interface FiltroProcedimientos {
@@ -65,6 +65,7 @@ export interface CrearProcedimientoPayload {
   justificacionTipo?: string
   urgente?: boolean
   justificacionUrgencia?: string
+  infoCronograma?: Partial<InfoCronograma>
 }
 
 async function crear(payload: CrearProcedimientoPayload): Promise<Procedimiento> {

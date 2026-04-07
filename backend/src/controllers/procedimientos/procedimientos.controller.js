@@ -36,7 +36,38 @@ async function listar(req, res, next) {
     const filtro = { ...filtroRol };
     if (anioFiscal) filtro.anioFiscal = Number(anioFiscal);
     if (urgente !== undefined) filtro.urgente = urgente === 'true';
-    if (etapaActual) filtro.etapaActual = etapaActual;
+    if (etapaActual) {
+      if (etapaActual === 'hoja_de_trabajo') {
+        filtro.$or = [
+          { etapaActual: 'hoja_de_trabajo' },
+          {
+            etapaActual: 'cronograma',
+            // Cronograma totalmente concluido: no existe etapa pendiente que no sea 'noAplica'
+            cronograma: {
+              $not: {
+                $elemMatch: {
+                  noAplica: { $ne: true },
+                  estado: { $ne: 'completado' },
+                },
+              },
+            },
+          },
+        ];
+      } else if (etapaActual === 'cronograma') {
+        // Cronograma activo: existe al menos una etapa no completada y que aplica
+        Object.assign(filtro, {
+          etapaActual: 'cronograma',
+          cronograma: {
+            $elemMatch: {
+              noAplica: { $ne: true },
+              estado: { $ne: 'completado' },
+            },
+          },
+        });
+      } else {
+        filtro.etapaActual = etapaActual;
+      }
+    }
     if (tipoProcedimiento) filtro.tipoProcedimiento = tipoProcedimiento;
     if (dgId && ['superadmin', 'gerencial'].includes(req.usuario.rol)) {
       filtro.direccionGeneral = dgId;
@@ -154,6 +185,8 @@ async function crear(req, res, next) {
       justificacionTipo,
       urgente: urgente || false,
       justificacionUrgencia: urgente ? justificacionUrgencia : undefined,
+      // Permitir capturar datos generales del cronograma en la creacion
+      infoCronograma: req.body.infoCronograma || {},
       cronograma,
       hojaDeTrabajoEtapas,
       creadoPor: req.usuario.id,

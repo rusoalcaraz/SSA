@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Modal } from '../ui/Modal'
@@ -8,30 +8,95 @@ import { mensajeDeError } from '../../services/api'
 interface NavItem {
   to: string
   label: string
+  icon: string
 }
 
-function NavItems() {
+function Icono({ nombre, className }: { nombre: string; className?: string }) {
+  const props = { width: 18, height: 18, className: className ?? 'shrink-0' }
+  switch (nombre) {
+    case 'dashboard':
+      return (
+        <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z" />
+        </svg>
+      )
+    case 'procedimientos':
+      return (
+        <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M4 4h16v4H4zM4 10h16v10H4z" />
+          <path d="M8 14h8M8 18h5" />
+        </svg>
+      )
+    case 'mis':
+      return (
+        <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="8" r="3" />
+          <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+        </svg>
+      )
+    case 'reportes':
+      return (
+        <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M4 4h16v16H4z" />
+          <path d="M7 13l3 3 7-7" />
+        </svg>
+      )
+    case 'usuarios':
+      return (
+        <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="8" cy="8" r="3" />
+          <circle cx="16" cy="8" r="3" />
+          <path d="M2 20c0-3.5 3-6 6-6" />
+          <path d="M22 20c0-3.5-3-6-6-6" />
+        </svg>
+      )
+    case 'catalogos':
+      return (
+        <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M4 7h16M4 12h16M4 17h16" />
+        </svg>
+      )
+    case 'dgs':
+      return (
+        <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 21V8l9-5 9 5v13H3z" />
+          <path d="M9 22V12h6v10" />
+        </svg>
+      )
+    case 'toggle':
+      return (
+        <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M8 6l-4 6 4 6" />
+          <path d="M16 6l4 6-4 6" />
+        </svg>
+      )
+    default:
+      return null
+  }
+}
+
+function NavItems({ colapsado }: { colapsado: boolean }) {
   const { tieneRol } = useAuth()
 
   const items: NavItem[] = []
 
   if (tieneRol('superadmin', 'gerencial')) {
-    items.push({ to: '/dashboard', label: 'Dashboard' })
+    items.push({ to: '/dashboard', label: 'Dashboard', icon: 'dashboard' })
   }
   if (tieneRol('area_contratante', 'asesor_tecnico', 'dgt')) {
-    items.push({ to: '/mis-procedimientos', label: 'Mis procedimientos' })
+    items.push({ to: '/mis-procedimientos', label: 'Mis procedimientos', icon: 'mis' })
   }
   if (!tieneRol('inspeccion')) {
-    items.push({ to: '/procedimientos', label: 'Procedimientos' })
+    items.push({ to: '/procedimientos', label: 'Procedimientos', icon: 'procedimientos' })
   }
   if (tieneRol('superadmin', 'gerencial', 'area_contratante')) {
-    items.push({ to: '/reportes', label: 'Reportes' })
+    items.push({ to: '/reportes', label: 'Reportes', icon: 'reportes' })
   }
   if (tieneRol('superadmin')) {
     items.push(
-      { to: '/admin/usuarios', label: 'Usuarios' },
-      { to: '/admin/catalogos', label: 'Catalogos' },
-      { to: '/admin/direcciones-generales', label: 'Direcciones Generales' }
+      { to: '/admin/usuarios', label: 'Usuarios', icon: 'usuarios' },
+      { to: '/admin/catalogos', label: 'Catalogos', icon: 'catalogos' },
+      { to: '/admin/direcciones-generales', label: 'Direcciones Generales', icon: 'dgs' }
     )
   }
 
@@ -41,15 +106,17 @@ function NavItems() {
         <NavLink
           key={item.to}
           to={item.to}
+          title={colapsado ? item.label : undefined}
           className={({ isActive }) =>
-            `flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+            `flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
               isActive
                 ? 'bg-blue-900 text-white'
                 : 'text-blue-100 hover:bg-blue-800 hover:text-white'
             }`
           }
         >
-          {item.label}
+          <Icono nombre={item.icon} />
+          {!colapsado && <span>{item.label}</span>}
         </NavLink>
       ))}
     </nav>
@@ -181,6 +248,20 @@ export function Sidebar() {
   const { usuario, logout } = useAuth()
   const navigate = useNavigate()
   const [modalPassword, setModalPassword] = useState(false)
+  const [colapsado, setColapsado] = useState<boolean>(() => {
+    try {
+      const s = localStorage.getItem('ssa_sidebar_colapsado')
+      return s ? JSON.parse(s) : false
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ssa_sidebar_colapsado', JSON.stringify(colapsado))
+    } catch {}
+  }, [colapsado])
 
   async function handleLogout() {
     await logout()
@@ -188,40 +269,68 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-60 bg-blue-950 flex flex-col min-h-screen shrink-0">
-      {/* Logo / titulo */}
-      <div className="px-5 py-5 border-b border-blue-800">
-        <span className="text-white font-bold text-base leading-tight block">
-          SSA
-        </span>
-        <span className="text-blue-300 text-xs">
-          Seguimiento de Adquisiciones
-        </span>
+    <aside className={`${colapsado ? 'w-16' : 'w-60'} bg-blue-950 flex flex-col min-h-screen shrink-0 transition-all duration-200`}>
+      <div className="px-3 py-3 border-b border-blue-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-white font-bold text-base leading-tight block">SSA</span>
+          {!colapsado && <span className="text-blue-300 text-xs">Seguimiento de Adquisiciones</span>}
+        </div>
+        <button
+          onClick={() => setColapsado((v) => !v)}
+          className="text-blue-200 hover:text-white p-1 rounded transition-colors"
+          title={colapsado ? 'Expandir' : 'Colapsar'}
+        >
+          <Icono nombre="toggle" className="h-5 w-5" />
+        </button>
       </div>
 
-      <NavItems />
+      <NavItems colapsado={colapsado} />
 
-      {/* Pie: info del usuario */}
-      <div className="px-4 py-4 border-t border-blue-800">
-        <p className="text-blue-200 text-xs font-medium truncate">
-          {usuario?.nombre} {usuario?.apellidos}
-        </p>
-        <p className="text-blue-400 text-xs truncate">{usuario?.correo}</p>
-        <p className="text-blue-400 text-xs mt-0.5 capitalize">{usuario?.rol?.replace(/_/g, ' ')}</p>
-        <div className="mt-3 flex flex-col gap-1">
-          <button
-            onClick={() => setModalPassword(true)}
-            className="text-left text-xs text-blue-300 hover:text-white transition-colors"
-          >
-            Cambiar contrasena
-          </button>
-          <button
-            onClick={handleLogout}
-            className="text-left text-xs text-blue-300 hover:text-white transition-colors"
-          >
-            Cerrar sesion
-          </button>
-        </div>
+      <div className="px-3 py-3 border-t border-blue-800">
+        {!colapsado ? (
+          <>
+            <p className="text-blue-200 text-xs font-medium truncate">
+              {usuario?.nombre} {usuario?.apellidos}
+            </p>
+            <p className="text-blue-400 text-xs truncate">{usuario?.correo}</p>
+            <p className="text-blue-400 text-xs mt-0.5 capitalize">{usuario?.rol?.replace(/_/g, ' ')}</p>
+            <div className="mt-3 flex flex-col gap-1">
+              <button
+                onClick={() => setModalPassword(true)}
+                className="text-left text-xs text-blue-300 hover:text-white transition-colors"
+              >
+                Cambiar contrasena
+              </button>
+              <button
+                onClick={handleLogout}
+                className="text-left text-xs text-blue-300 hover:text-white transition-colors"
+              >
+                Cerrar sesion
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={() => setModalPassword(true)}
+              className="text-blue-300 hover:text-white transition-colors"
+              title="Cambiar contrasena"
+            >
+              <Icono nombre="usuarios" className="h-5 w-5" />
+            </button>
+            <button
+              onClick={handleLogout}
+              className="text-blue-300 hover:text-white transition-colors"
+              title="Cerrar sesion"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M16 17l5-5-5-5" />
+                <path d="M21 12H9" />
+                <path d="M3 21V3h6" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
       {modalPassword && (
