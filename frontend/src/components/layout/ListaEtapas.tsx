@@ -24,6 +24,7 @@ type AccionModal =
   | { tipo: 'completar'; etapa: EtapaProcedimiento }
   | { tipo: 'observacion'; etapa: EtapaProcedimiento }
   | { tipo: 'historial'; etapa: EtapaProcedimiento }
+  | { tipo: 'noAplica'; etapa: EtapaProcedimiento }
   | null
 
 export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
@@ -81,18 +82,21 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
     <>
       <div className="space-y-3">
         {etapas.map((etapa, idx) => {
-          const puedeCompletar = (esAT || esSuperadmin) && etapa.estado !== 'completado'
-          const puedeProponer = esAC && etapa.estado !== 'completado'
+          const puedeCompletar = (esAT || esSuperadmin) && etapa.estado !== 'completado' && !etapa.noAplica
+          const puedeProponer = esAC && etapa.estado !== 'completado' && !etapa.noAplica
           const puedeResponder =
             (esAT || esSuperadmin) && etapa.estado === 'fecha_propuesta'
           const puedeSobreescribir = esAC && etapa.estado === 'fecha_rechazada'
-          const puedeObservacion = esAT || tieneRol('dgt') || esSuperadmin
+          const puedeObservacion = (esAT || tieneRol('dgt') || esSuperadmin) && !etapa.noAplica
+          const puedeNoAplica = esAC && etapa.estado !== 'completado'
 
           return (
             <div
               key={etapa._id}
               className={`rounded-lg border px-4 py-4 transition-colors ${
-                etapa.estado === 'completado'
+                etapa.noAplica
+                  ? 'border-gray-200 bg-gray-50/60 opacity-60'
+                  : etapa.estado === 'completado'
                   ? 'border-green-200 bg-green-50/40'
                   : etapa.estado === 'vencido'
                   ? 'border-red-200 bg-red-50/40'
@@ -111,9 +115,17 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                   </span>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-gray-900 text-sm">{etapa.nombre}</p>
-                      <EstadoEtapaBadge estado={etapa.estado} />
-                      {!etapa.obligatoria && (
+                      <p className={`font-medium text-sm ${etapa.noAplica ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                        {etapa.nombre}
+                      </p>
+                      {etapa.noAplica ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">
+                          No aplica
+                        </span>
+                      ) : (
+                        <EstadoEtapaBadge estado={etapa.estado} />
+                      )}
+                      {!etapa.obligatoria && !etapa.noAplica && (
                         <span className="text-xs text-gray-400">(Opcional)</span>
                       )}
                     </div>
@@ -197,6 +209,18 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                       className="px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
                     >
                       + Observacion
+                    </button>
+                  )}
+                  {puedeNoAplica && (
+                    <button
+                      onClick={() => abrirModal({ tipo: 'noAplica', etapa })}
+                      className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                        etapa.noAplica
+                          ? 'text-gray-600 bg-gray-200 hover:bg-gray-300'
+                          : 'text-gray-500 bg-gray-100 hover:bg-gray-200'
+                      }`}
+                    >
+                      {etapa.noAplica ? 'Reactivar' : 'No aplica'}
                     </button>
                   )}
                   {etapa.historialFechas.length > 0 && (
@@ -438,6 +462,45 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
             >
               {enviando && <Spinner className="h-4 w-4 text-white" />}
               Guardar
+            </button>
+            <button onClick={cerrarModal} disabled={enviando} className="flex-1 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+              Cancelar
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* No aplica / Reactivar */}
+      {modal?.tipo === 'noAplica' && (
+        <Modal
+          titulo={modal.etapa.noAplica ? 'Reactivar etapa' : 'Marcar como "No aplica"'}
+          onClose={cerrarModal}
+        >
+          <p className="text-sm text-gray-600 mb-4">
+            {modal.etapa.noAplica ? (
+              <>
+                ¿Deseas reactivar la etapa <strong>"{modal.etapa.nombre}"</strong>? Volvera a su estado pendiente.
+              </>
+            ) : (
+              <>
+                ¿Confirmas que la etapa <strong>"{modal.etapa.nombre}"</strong> no aplica para este procedimiento? Se
+                omitira del flujo sin bloquear las siguientes etapas.
+              </>
+            )}
+          </p>
+          {errorModal && <p className="text-sm text-red-600 mb-3">{errorModal}</p>}
+          <div className="flex gap-3">
+            <button
+              onClick={() =>
+                ejecutar(() =>
+                  etapasService.marcarNoAplica(procedimiento._id, modal.etapa._id, !modal.etapa.noAplica)
+                )
+              }
+              disabled={enviando}
+              className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-400 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+            >
+              {enviando && <Spinner className="h-4 w-4 text-white" />}
+              {modal.etapa.noAplica ? 'Reactivar' : 'Confirmar'}
             </button>
             <button onClick={cerrarModal} disabled={enviando} className="flex-1 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
               Cancelar

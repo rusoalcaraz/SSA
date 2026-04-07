@@ -51,6 +51,20 @@ router.put(
   procCtrl.actualizarJustificacion
 );
 
+// Informacion de cabecera del cronograma
+router.put(
+  '/:id/cronograma-info',
+  checkRole(['superadmin', 'area_contratante', 'asesor_tecnico']),
+  procCtrl.actualizarInfoCronograma
+);
+
+// Informacion de cabecera de la hoja de trabajo
+router.put(
+  '/:id/hoja-trabajo-info',
+  checkRole(['superadmin', 'area_contratante', 'asesor_tecnico']),
+  procCtrl.actualizarInfoHojaDeTrabajo
+);
+
 // Archivo de evidencia de justificacion
 router.post(
   '/:id/justificacion/archivo',
@@ -107,6 +121,12 @@ router.patch(
   '/:id/etapas/:etapaId/sobreescribir-fecha',
   checkRole(['superadmin', 'area_contratante']),
   etapasCtrl.sobreescribirFecha
+);
+
+router.patch(
+  '/:id/etapas/:etapaId/no-aplica',
+  checkRole(['superadmin', 'area_contratante']),
+  etapasCtrl.marcarNoAplica
 );
 
 router.post(

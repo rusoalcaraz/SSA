@@ -5,6 +5,8 @@ import type {
   EtapaActual,
   TipoProcedimiento,
   Paginacion,
+  InfoCronograma,
+  InfoHojaDeTrabajo,
 } from '../types'
 
 export interface FiltroProcedimientos {
@@ -90,4 +92,34 @@ async function marcarUrgente(
   return data.data
 }
 
-export const procedimientosService = { listar, obtener, crear, actualizar, marcarUrgente }
+async function actualizarInfoCronograma(
+  id: string,
+  payload: Partial<InfoCronograma>
+): Promise<InfoCronograma> {
+  const { data } = await api.put<ApiResponse<InfoCronograma>>(
+    `/procedimientos/${id}/cronograma-info`,
+    payload
+  )
+  return data.data
+}
+
+async function actualizarInfoHojaDeTrabajo(
+  id: string,
+  payload: Partial<InfoHojaDeTrabajo>
+): Promise<InfoHojaDeTrabajo> {
+  const { data } = await api.put<ApiResponse<InfoHojaDeTrabajo>>(
+    `/procedimientos/${id}/hoja-trabajo-info`,
+    payload
+  )
+  return data.data
+}
+
+export const procedimientosService = {
+  listar,
+  obtener,
+  crear,
+  actualizar,
+  marcarUrgente,
+  actualizarInfoCronograma,
+  actualizarInfoHojaDeTrabajo,
+}

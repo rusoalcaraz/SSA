@@ -52,44 +52,124 @@ const BIENES_SERVICIOS = [
   { clave: 'BS-010', descripcion: 'Desarrollo y consultoria de sistemas informaticos', tipo: 'bien_y_servicio', unidadMedida: 'Proyecto' },
 ];
 
-// Etapas de cronograma — comunes a todos los tipos de procedimiento (aplicaA vacio = aplica a todos)
+// Etapas de cronograma — 7 etapas reales del proceso previo a la contratacion
 const ETAPAS_CRONOGRAMA = [
-  { nombre: 'Requisicion y autorizacion presupuestal', orden: 1, obligatoria: true, diasAlertaUrgente: 5 },
-  { nombre: 'Elaboracion de bases de licitacion', orden: 2, obligatoria: true, diasAlertaUrgente: 5 },
-  { nombre: 'Publicacion de convocatoria', orden: 3, obligatoria: true, diasAlertaUrgente: 3 },
-  { nombre: 'Visita a instalaciones', orden: 4, obligatoria: false },
-  { nombre: 'Junta de aclaraciones', orden: 5, obligatoria: true, diasAlertaUrgente: 3 },
-  { nombre: 'Presentacion y apertura de proposiciones', orden: 6, obligatoria: true, diasAlertaUrgente: 3 },
-  { nombre: 'Evaluacion tecnica y economica', orden: 7, obligatoria: true, diasAlertaUrgente: 5 },
-  { nombre: 'Dictamen de fallo', orden: 8, obligatoria: true, diasAlertaUrgente: 3 },
-  { nombre: 'Notificacion de fallo', orden: 9, obligatoria: true },
-  { nombre: 'Firma de contrato', orden: 10, obligatoria: true, diasAlertaUrgente: 3 },
-];
-
-// Etapas especificas: solo aplican a licitacion publica nacional
-const ETAPAS_CRONOGRAMA_ESPECIFICAS = [
   {
-    nombre: 'Publicacion en CompraNet',
-    orden: 11,
+    nombre: 'Ficha tecnica, tarjeta de requerimientos y consolidado de necesidades.',
+    orden: 1,
     obligatoria: true,
-    aplicaA: ['licitacion_publica_nacional', 'licitacion_publica_internacional_libre', 'licitacion_publica_internacional_tratados'],
+    diasAlertaUrgente: 5,
+  },
+  {
+    nombre: 'Constancia de existencias en el almacen (FOCON-02) y requisicion de bienes y servicios (FOCON-03).',
+    orden: 2,
+    obligatoria: true,
+    diasAlertaUrgente: 5,
+  },
+  {
+    nombre: 'Entrega de la solicitud de cotizacion (FOCON-04) y criterios de evaluacion.',
+    orden: 3,
+    obligatoria: true,
+    diasAlertaUrgente: 3,
+  },
+  {
+    nombre: 'Investigacion de mercado (FOCON-05).',
+    orden: 4,
+    obligatoria: true,
+    diasAlertaUrgente: 3,
+  },
+  {
+    nombre: 'Informe de la investigacion de mercado.',
+    orden: 5,
+    obligatoria: true,
+    diasAlertaUrgente: 3,
+  },
+  {
+    nombre: 'Estudio de acreditacion.',
+    orden: 6,
+    obligatoria: true,
+    diasAlertaUrgente: 5,
+  },
+  {
+    nombre: 'Entrega de la documentacion soporte al area contratante.',
+    orden: 7,
+    obligatoria: true,
+    diasAlertaUrgente: 3,
   },
 ];
 
-// Etapas de hoja de trabajo — comunes a todos los tipos de procedimiento
+// Etapas de hoja de trabajo — 12 etapas del procedimiento de contratacion
 const ETAPAS_HOJA_TRABAJO = [
-  { nombre: 'Entrega de la documentacion soporte a la D.G.ADMON.', orden: 1, obligatoria: true, diasAlertaUrgente: 5 },
-  { nombre: 'Revision de la documentacion soporte por la Seccion Juridica y Asesores Externos de D.G.ADMON.', orden: 2, obligatoria: true, diasAlertaUrgente: 5 },
-  { nombre: 'Aprobacion del C.A.A.S. de la S.D.N.', orden: 3, obligatoria: true, diasAlertaUrgente: 3 },
-  { nombre: 'Solicitud para el inicio del procedimiento (DN-1 u Oficialia Mayor).', orden: 4, obligatoria: true, diasAlertaUrgente: 3 },
-  { nombre: 'Publicacion de la Convocatoria, o Entrega de la invitacion y/o Solicitud de cotizacion.', orden: 5, obligatoria: true, diasAlertaUrgente: 3 },
-  { nombre: 'Junta de aclaraciones.', orden: 6, obligatoria: false },
-  { nombre: 'Apertura de propuestas.', orden: 7, obligatoria: true, diasAlertaUrgente: 3 },
-  { nombre: 'Solicitud para la comunicacion del fallo.', orden: 8, obligatoria: true, diasAlertaUrgente: 3 },
-  { nombre: 'Comunicacion del fallo o adjudicacion.', orden: 9, obligatoria: true, diasAlertaUrgente: 3 },
-  { nombre: 'Firma de contrato.', orden: 10, obligatoria: true, diasAlertaUrgente: 5 },
-  { nombre: 'Entrega de las fianzas (conforme a lo establecido en la convocatoria).', orden: 11, obligatoria: false },
-  { nombre: 'Entrega de los bienes o servicios.', orden: 12, obligatoria: true, diasAlertaUrgente: 5 },
+  {
+    nombre: 'Entrega de la documentacion soporte al area contratante.',
+    orden: 1,
+    obligatoria: true,
+    diasAlertaUrgente: 5,
+  },
+  {
+    nombre: 'Revision de la documentacion soporte por la Seccion Juridica y Asesores Externos del area contratante.',
+    orden: 2,
+    obligatoria: true,
+    diasAlertaUrgente: 5,
+  },
+  {
+    nombre: 'Aprobacion del C.A.A.S. S.D.N.',
+    orden: 3,
+    obligatoria: true,
+    diasAlertaUrgente: 3,
+  },
+  {
+    nombre: 'Solicitud para el inicio del procedimiento.',
+    orden: 4,
+    obligatoria: true,
+    diasAlertaUrgente: 3,
+  },
+  {
+    nombre: 'Publicacion de la convocatoria o entrega de la invitacion y/o solicitud de cotizacion.',
+    orden: 5,
+    obligatoria: true,
+    diasAlertaUrgente: 3,
+  },
+  {
+    nombre: 'Junta de aclaraciones.',
+    orden: 6,
+    obligatoria: false,
+  },
+  {
+    nombre: 'Apertura de propuestas.',
+    orden: 7,
+    obligatoria: true,
+    diasAlertaUrgente: 3,
+  },
+  {
+    nombre: 'Solicitud para la comunicacion del fallo.',
+    orden: 8,
+    obligatoria: true,
+    diasAlertaUrgente: 3,
+  },
+  {
+    nombre: 'Comunicacion del fallo o adjudicacion.',
+    orden: 9,
+    obligatoria: true,
+    diasAlertaUrgente: 3,
+  },
+  {
+    nombre: 'Firma del contrato.',
+    orden: 10,
+    obligatoria: true,
+    diasAlertaUrgente: 5,
+  },
+  {
+    nombre: 'Entrega de las fianzas (conforme a lo establecido en la convocatoria).',
+    orden: 11,
+    obligatoria: false,
+  },
+  {
+    nombre: 'Entrega de los bienes o servicios.',
+    orden: 12,
+    obligatoria: true,
+    diasAlertaUrgente: 5,
+  },
 ];
 
 // -------------------------------------------------------
@@ -130,37 +210,33 @@ async function seedBienesServicios() {
 }
 
 async function seedEtapas() {
-  // Cronograma comunes
+  // Cronograma — upsert por tipo+orden para que re-ejecutar actualice los nombres
   for (const etapa of ETAPAS_CRONOGRAMA) {
-    const existe = await CatalogoEtapas.findOne({ tipo: 'cronograma', orden: etapa.orden });
-    if (existe) {
-      console.log(`  [skip] Etapa cronograma orden ${etapa.orden} ya existe`);
-      continue;
-    }
-    await CatalogoEtapas.create({ ...etapa, tipo: 'cronograma', aplicaA: [] });
-    console.log(`  [ok]   Etapa cronograma orden ${etapa.orden}: ${etapa.nombre}`);
+    const resultado = await CatalogoEtapas.findOneAndUpdate(
+      { tipo: 'cronograma', orden: etapa.orden },
+      { $set: { ...etapa, tipo: 'cronograma', aplicaA: [] } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    console.log(`  [ok]   Etapa cronograma orden ${etapa.orden}: ${resultado.nombre}`);
   }
 
-  // Cronograma especificas
-  for (const etapa of ETAPAS_CRONOGRAMA_ESPECIFICAS) {
-    const existe = await CatalogoEtapas.findOne({ tipo: 'cronograma', orden: etapa.orden });
-    if (existe) {
-      console.log(`  [skip] Etapa cronograma orden ${etapa.orden} ya existe`);
-      continue;
-    }
-    await CatalogoEtapas.create({ ...etapa, tipo: 'cronograma' });
-    console.log(`  [ok]   Etapa cronograma orden ${etapa.orden}: ${etapa.nombre}`);
+  // Eliminar etapas de cronograma que ya no existen (orden > 7)
+  const eliminadas = await CatalogoEtapas.deleteMany({
+    tipo: 'cronograma',
+    orden: { $gt: ETAPAS_CRONOGRAMA.length },
+  });
+  if (eliminadas.deletedCount > 0) {
+    console.log(`  [clean] Eliminadas ${eliminadas.deletedCount} etapas de cronograma obsoletas`);
   }
 
-  // Hoja de trabajo
+  // Hoja de trabajo — upsert por tipo+orden
   for (const etapa of ETAPAS_HOJA_TRABAJO) {
-    const existe = await CatalogoEtapas.findOne({ tipo: 'hoja_de_trabajo', orden: etapa.orden });
-    if (existe) {
-      console.log(`  [skip] Etapa hoja_de_trabajo orden ${etapa.orden} ya existe`);
-      continue;
-    }
-    await CatalogoEtapas.create({ ...etapa, tipo: 'hoja_de_trabajo', aplicaA: [] });
-    console.log(`  [ok]   Etapa hoja_de_trabajo orden ${etapa.orden}: ${etapa.nombre}`);
+    const resultado = await CatalogoEtapas.findOneAndUpdate(
+      { tipo: 'hoja_de_trabajo', orden: etapa.orden },
+      { $set: { ...etapa, tipo: 'hoja_de_trabajo', aplicaA: [] } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    console.log(`  [ok]   Etapa hoja_de_trabajo orden ${etapa.orden}: ${resultado.nombre}`);
   }
 }
 

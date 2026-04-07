@@ -101,6 +101,7 @@ export interface EtapaProcedimiento {
   nombre: string
   orden: number
   obligatoria: boolean
+  noAplica: boolean
   fechaPlaneada?: string
   fechaReal?: string
   estado: EstadoEtapa
@@ -111,6 +112,38 @@ export interface EtapaProcedimiento {
   alertaEnviada: boolean
   completadoPor?: UsuarioResumen
   completadoEn?: string
+}
+
+export interface InfoCronograma {
+  organismo?: string
+  fecha?: string
+  asesorTecnico?: string
+  fuenteFinanciamiento?: string
+  telefonoCelular?: string
+  extensionSatelital?: string
+  nombreProcedimientoContratacion?: string
+  numeroPartidas?: number
+  numeroArticulos?: number
+  capituloGasto?: string
+  requiereAnualidad?: boolean | null
+  numeroOficioPlurianualidad?: string
+  claveCartera?: string
+  numeroClaveCartera?: string
+}
+
+export interface InfoHojaDeTrabajo {
+  organismo?: string
+  fecha?: string
+  nombreResponsable?: string
+  telefonoCelular?: string
+  extensionSatelital?: string
+  nombreProcedimientoContratacion?: string
+  techoPresupuestal?: number
+  claveCartera?: string
+  origenRecursos?: string
+  tipoProcedimientoContratacion?: string
+  areaContratante?: string
+  extensionSatelitalAreaContratante?: string
 }
 
 export interface DocumentoEntrega {
@@ -166,7 +199,9 @@ export interface Procedimiento {
   urgente: boolean
   justificacionUrgencia?: string
   etapaActual: EtapaActual
+  infoCronograma: InfoCronograma
   cronograma: EtapaProcedimiento[]
+  infoHojaDeTrabajo: InfoHojaDeTrabajo
   hojaDeTrabajoEtapas: EtapaProcedimiento[]
   entregas: Entrega[]
   creadoPor: UsuarioResumen

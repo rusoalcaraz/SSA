@@ -55,6 +55,50 @@ const observacionSchema = new mongoose.Schema(
 );
 
 // -------------------------------------------------------
+// Sub-schema: informacion de cabecera del cronograma
+// -------------------------------------------------------
+const infoCronogramaSchema = new mongoose.Schema(
+  {
+    organismo: String,
+    fecha: Date,
+    asesorTecnico: String,
+    fuenteFinanciamiento: String,
+    telefonoCelular: String,
+    extensionSatelital: String,
+    nombreProcedimientoContratacion: String,
+    numeroPartidas: Number,
+    numeroArticulos: Number,
+    capituloGasto: String,
+    requiereAnualidad: { type: Boolean, default: null },
+    numeroOficioPlurianualidad: String,
+    claveCartera: String,
+    numeroClaveCartera: String,
+  },
+  { _id: false }
+);
+
+// -------------------------------------------------------
+// Sub-schema: informacion de cabecera de la hoja de trabajo
+// -------------------------------------------------------
+const infoHojaDeTrabajoSchema = new mongoose.Schema(
+  {
+    organismo: String,
+    fecha: Date,
+    nombreResponsable: String,
+    telefonoCelular: String,
+    extensionSatelital: String,
+    nombreProcedimientoContratacion: String,
+    techoPresupuestal: Number,
+    claveCartera: String,
+    origenRecursos: String,
+    tipoProcedimientoContratacion: String,
+    areaContratante: String,
+    extensionSatelitalAreaContratante: String,
+  },
+  { _id: false }
+);
+
+// -------------------------------------------------------
 // Sub-schema: etapa dentro de cronograma o hoja de trabajo
 // -------------------------------------------------------
 const etapaProcedimientoSchema = new mongoose.Schema(
@@ -67,6 +111,8 @@ const etapaProcedimientoSchema = new mongoose.Schema(
     nombre: { type: String, required: true },
     orden: { type: Number, required: true },
     obligatoria: { type: Boolean, default: true },
+
+    noAplica: { type: Boolean, default: false },
 
     fechaPlaneada: Date,
     fechaReal: Date,
@@ -241,7 +287,9 @@ const procedimientoSchema = new mongoose.Schema(
       default: 'cronograma',
     },
 
+    infoCronograma: { type: infoCronogramaSchema, default: () => ({}) },
     cronograma: [etapaProcedimientoSchema],
+    infoHojaDeTrabajo: { type: infoHojaDeTrabajoSchema, default: () => ({}) },
     hojaDeTrabajoEtapas: [etapaProcedimientoSchema],
     entregas: [entregaSchema],
 

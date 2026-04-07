@@ -47,11 +47,12 @@ async function resolverSeccion(procedimientoId, etapaId) {
 }
 
 /**
- * Regla de flujo secuencial: la etapa anterior (por orden) debe estar completada.
+ * Regla de flujo secuencial: la etapa obligatoria anterior (por orden) debe estar
+ * completada o marcada como noAplica.
  */
 function verificarSecuencia(lista, etapa) {
   const anterior = lista
-    .filter((e) => e.orden < etapa.orden && e.obligatoria)
+    .filter((e) => e.orden < etapa.orden && e.obligatoria && !e.noAplica)
     .sort((a, b) => b.orden - a.orden)[0];
 
   if (anterior && anterior.estado !== 'completado') {
@@ -354,6 +355,48 @@ async function subirArchivo(req, res, next) {
   }
 }
 
+// -------------------------------------------------------
+// PATCH /:id/etapas/:etapaId/no-aplica  — AC / superadmin
+// Marca o desmarca una etapa como "No aplica".
+// -------------------------------------------------------
+async function marcarNoAplica(req, res, next) {
+  try {
+    const { noAplica } = req.body;
+    if (noAplica === undefined) {
+      throw crearError(400, 'DATOS_REQUERIDOS', 'El campo noAplica es requerido');
+    }
+
+    const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
+
+    if (etapa.estado === 'completado') {
+      throw crearError(409, 'ETAPA_COMPLETADA', 'No se puede modificar una etapa ya completada');
+    }
+
+    etapa.noAplica = Boolean(noAplica);
+    // Si se marca como no aplica, limpiar fecha planeada y estado asociado
+    if (etapa.noAplica) {
+      etapa.fechaPlaneada = undefined;
+      etapa.fechaPropuesta = undefined;
+      etapa.estado = 'pendiente';
+    }
+
+    await procedimiento.save();
+
+    await auditLog.registrar({
+      usuarioId: req.usuario.id,
+      accion: noAplica ? 'ETAPA_NO_APLICA' : 'ETAPA_REACTIVAR',
+      recurso: 'etapa',
+      recursoId: etapa._id,
+      detalle: { procedimientoId: procedimiento._id, nombreEtapa: etapa.nombre },
+      req,
+    });
+
+    return ok(res, etapa, noAplica ? `Etapa marcada como "No aplica"` : 'Etapa reactivada');
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   completar,
   proponerFecha,
@@ -361,4 +404,5 @@ module.exports = {
   sobreescribirFecha,
   agregarObservacion,
   subirArchivo,
+  marcarNoAplica,
 };

@@ -57,10 +57,23 @@ async function agregarObservacion(
   await api.post(`${base(procedimientoId, etapaId)}/observacion`, { texto })
 }
 
+async function marcarNoAplica(
+  procedimientoId: string,
+  etapaId: string,
+  noAplica: boolean
+): Promise<EtapaProcedimiento> {
+  const { data } = await api.patch<ApiResponse<EtapaProcedimiento>>(
+    `${base(procedimientoId, etapaId)}/no-aplica`,
+    { noAplica }
+  )
+  return data.data
+}
+
 export const etapasService = {
   completar,
   proponerFecha,
   responderFecha,
   sobreescribirFecha,
   agregarObservacion,
+  marcarNoAplica,
 }

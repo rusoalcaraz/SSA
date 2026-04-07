@@ -297,4 +297,81 @@ async function actualizarJustificacion(req, res, next) {
   }
 }
 
-module.exports = { listar, obtener, crear, actualizar, marcarUrgente, actualizarJustificacion };
+// -------------------------------------------------------
+// PUT /api/v1/procedimientos/:id/cronograma-info
+// -------------------------------------------------------
+async function actualizarInfoCronograma(req, res, next) {
+  try {
+    const procedimiento = await Procedimiento.findById(req.params.id);
+    if (!procedimiento) {
+      throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    const campos = [
+      'organismo', 'fecha', 'asesorTecnico', 'fuenteFinanciamiento',
+      'telefonoCelular', 'extensionSatelital', 'nombreProcedimientoContratacion',
+      'numeroPartidas', 'numeroArticulos', 'capituloGasto', 'requiereAnualidad',
+      'numeroOficioPlurianualidad', 'claveCartera', 'numeroClaveCartera',
+    ];
+
+    if (!procedimiento.infoCronograma) {
+      procedimiento.infoCronograma = {};
+    }
+    for (const campo of campos) {
+      if (req.body[campo] !== undefined) {
+        procedimiento.infoCronograma[campo] = req.body[campo];
+      }
+    }
+    procedimiento.markModified('infoCronograma');
+
+    await procedimiento.save();
+    return ok(res, procedimiento.infoCronograma, 'Informacion del cronograma actualizada');
+  } catch (error) {
+    next(error);
+  }
+}
+
+// -------------------------------------------------------
+// PUT /api/v1/procedimientos/:id/hoja-trabajo-info
+// -------------------------------------------------------
+async function actualizarInfoHojaDeTrabajo(req, res, next) {
+  try {
+    const procedimiento = await Procedimiento.findById(req.params.id);
+    if (!procedimiento) {
+      throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    const campos = [
+      'organismo', 'fecha', 'nombreResponsable', 'telefonoCelular',
+      'extensionSatelital', 'nombreProcedimientoContratacion', 'techoPresupuestal',
+      'claveCartera', 'origenRecursos', 'tipoProcedimientoContratacion',
+      'areaContratante', 'extensionSatelitalAreaContratante',
+    ];
+
+    if (!procedimiento.infoHojaDeTrabajo) {
+      procedimiento.infoHojaDeTrabajo = {};
+    }
+    for (const campo of campos) {
+      if (req.body[campo] !== undefined) {
+        procedimiento.infoHojaDeTrabajo[campo] = req.body[campo];
+      }
+    }
+    procedimiento.markModified('infoHojaDeTrabajo');
+
+    await procedimiento.save();
+    return ok(res, procedimiento.infoHojaDeTrabajo, 'Informacion de la hoja de trabajo actualizada');
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  listar,
+  obtener,
+  crear,
+  actualizar,
+  marcarUrgente,
+  actualizarJustificacion,
+  actualizarInfoCronograma,
+  actualizarInfoHojaDeTrabajo,
+};
