@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { dashboardService, type ResumenDashboard } from '../services/dashboard.service'
+import { useNavigate } from 'react-router-dom'
+import { dashboardService, type ResumenDashboard, type TipoKPI, type ProcedimientoKPI } from '../services/dashboard.service'
 import { mensajeDeError } from '../services/api'
 import { Spinner } from '../components/ui/Spinner'
+import { Modal } from '../components/ui/Modal'
 import { ETIQUETA_ETAPA, ETIQUETA_TIPO } from '../utils/formato'
 import type { EtapaActual, TipoProcedimiento } from '../types'
 
@@ -221,6 +223,7 @@ function TarjetaKPI({
   colorBorde,
   colorFondo,
   colorIcono,
+  onClick,
 }: {
   titulo: string
   valor: number | string
@@ -230,30 +233,64 @@ function TarjetaKPI({
   colorBorde: string
   colorFondo: string
   colorIcono: string
+  onClick?: () => void
 }) {
+  const clicable = onClick && Number(valor) > 0
   return (
     <div
-      className={`bg-white rounded-xl border-t-4 ${alerta ? 'border-red-500' : colorBorde} shadow-sm p-3 xl:px-5 xl:py-4 flex items-start gap-2 xl:gap-4 hover:shadow-md transition-shadow`}
+      onClick={clicable ? onClick : undefined}
+      className={`bg-white rounded-xl border-t-4 ${alerta ? 'border-red-500' : colorBorde} shadow-sm p-3 xl:px-5 xl:py-4 flex items-start gap-2 xl:gap-4 transition-shadow ${clicable ? 'cursor-pointer hover:shadow-lg hover:scale-[1.01] transition-transform' : 'hover:shadow-md'}`}
     >
       <div className={`shrink-0 rounded-lg xl:rounded-xl p-2 xl:p-2.5 ${alerta ? 'bg-red-50 text-red-500' : `${colorFondo} ${colorIcono}`}`}>
         {icono}
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wide xl:tracking-wider mb-1 leading-tight">{titulo}</p>
         <p className={`text-2xl xl:text-3xl font-extrabold leading-none ${alerta ? 'text-red-600' : 'text-gray-900'}`}>{valor}</p>
         {subtitulo && <p className="text-[10px] xl:text-xs text-gray-400 mt-1 leading-tight">{subtitulo}</p>}
       </div>
+      {clicable && (
+        <span className="shrink-0 self-center text-gray-300 text-xs">›</span>
+      )}
     </div>
   )
 }
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
+const TITULO_KPI: Record<TipoKPI, string> = {
+  total: 'Total de procedimientos',
+  urgentes: 'Procedimientos urgentes',
+  vencidas: 'Etapas vencidas',
+  proximas: 'Próximas a vencer',
+}
+
 export function Dashboard() {
+  const navigate = useNavigate()
   const [resumen, setResumen] = useState<ResumenDashboard | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [anioFiscal, setAnioFiscal] = useState<string>('')
+
+  // Modal KPI
+  const [modalKPI, setModalKPI] = useState<TipoKPI | null>(null)
+  const [procedimientosKPI, setProcedimientosKPI] = useState<ProcedimientoKPI[]>([])
+  const [cargandoKPI, setCargandoKPI] = useState(false)
+
+  async function abrirKPI(tipo: TipoKPI, valor: number) {
+    if (valor === 0) return
+    setModalKPI(tipo)
+    setProcedimientosKPI([])
+    setCargandoKPI(true)
+    try {
+      const data = await dashboardService.kpiDetalle(tipo, anioFiscal ? Number(anioFiscal) : undefined)
+      setProcedimientosKPI(data)
+    } catch {
+      setProcedimientosKPI([])
+    } finally {
+      setCargandoKPI(false)
+    }
+  }
 
   useEffect(() => {
     setCargando(true)
@@ -293,8 +330,7 @@ export function Dashboard() {
     : []
   const maxDG = datosDG.reduce((m, d) => Math.max(m, d.total), 0)
 
-  const hayAlertas =
-    resumen && (resumen.alertas.etapasVencidas > 0 || resumen.alertas.etapasProximasAVencer > 0)
+  const hayAlertas = resumen && resumen.alertas.etapasVencidas > 0
 
   return (
     <div className="space-y-6">
@@ -331,27 +367,93 @@ export function Dashboard() {
         <div className="py-10 text-center text-sm text-red-600">{error}</div>
       )}
 
+      {/* ── Modal KPI ── */}
+      {modalKPI && (
+        <Modal
+          titulo={TITULO_KPI[modalKPI]}
+          onClose={() => setModalKPI(null)}
+          className="max-w-2xl"
+        >
+          {cargandoKPI ? (
+            <div className="flex justify-center py-10">
+              <Spinner className="text-blue-900" />
+            </div>
+          ) : procedimientosKPI.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">Sin resultados.</p>
+          ) : (
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+              {procedimientosKPI.map((proc) => (
+                <div
+                  key={proc._id}
+                  className="border border-gray-100 rounded-lg px-4 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        {proc.urgente && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">
+                            URGENTE
+                          </span>
+                        )}
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {proc.numeroProcedimiento ?? 'Sin número'}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+                          {ETIQUETA_ETAPA[proc.etapaActual]}
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-800 leading-snug truncate">{proc.titulo}</p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                        {proc.direccionGeneral && (
+                          <span>{proc.direccionGeneral.siglas}</span>
+                        )}
+                        {proc.asesorTitular && (
+                          <span>{proc.asesorTitular.nombre} {proc.asesorTitular.apellidos}</span>
+                        )}
+                      </div>
+                      {proc.etapasRelevantes && proc.etapasRelevantes.length > 0 && (
+                        <div className="mt-2 space-y-0.5">
+                          {proc.etapasRelevantes.map((e, i) => (
+                            <div key={i} className="flex items-center gap-1.5 text-[11px]">
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${modalKPI === 'vencidas' ? 'bg-red-500' : 'bg-amber-400'}`} />
+                              <span className="text-gray-600">{e.nombre}</span>
+                              <span className="text-gray-400">—</span>
+                              <span className={`font-medium ${modalKPI === 'vencidas' ? 'text-red-600' : 'text-amber-600'}`}>
+                                {new Date(e.fechaPlaneada).toLocaleDateString('es-MX')}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setModalKPI(null)
+                        navigate(`/procedimientos/${proc._id}`)
+                      }}
+                      className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-900 hover:bg-blue-800 text-white transition-colors"
+                    >
+                      Ver detalle
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal>
+      )}
+
       {resumen && !cargando && (
         <>
           {/* ── Banner alertas ── */}
           {hayAlertas && (
             <div className="flex flex-wrap gap-3">
-              {resumen.alertas.etapasVencidas > 0 && (
-                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-700 font-medium">
-                  <IcoReloj className="w-4 h-4 text-red-500" />
-                  <span>
-                    <strong>{resumen.alertas.etapasVencidas}</strong> etapa{resumen.alertas.etapasVencidas !== 1 ? 's' : ''} vencida{resumen.alertas.etapasVencidas !== 1 ? 's' : ''}
-                  </span>
-                </div>
-              )}
-              {resumen.alertas.etapasProximasAVencer > 0 && (
-                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-700 font-medium">
-                  <IcoCalendario className="w-4 h-4 text-amber-500" />
-                  <span>
-                    <strong>{resumen.alertas.etapasProximasAVencer}</strong> etapa{resumen.alertas.etapasProximasAVencer !== 1 ? 's' : ''} próxima{resumen.alertas.etapasProximasAVencer !== 1 ? 's' : ''} a vencer (3 días)
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-700 font-medium">
+                <IcoReloj className="w-4 h-4 text-red-500" />
+                <span>
+                  <strong>{resumen.alertas.etapasVencidas}</strong> etapa{resumen.alertas.etapasVencidas !== 1 ? 's' : ''} vencida{resumen.alertas.etapasVencidas !== 1 ? 's' : ''}
+                </span>
+              </div>
             </div>
           )}
 
@@ -364,6 +466,7 @@ export function Dashboard() {
               colorFondo="bg-blue-50"
               colorIcono="text-blue-600"
               icono={<IcoDocumento className="w-6 h-6" />}
+              onClick={() => abrirKPI('total', resumen.totalProcedimientos)}
             />
             <TarjetaKPI
               titulo="Urgentes"
@@ -373,6 +476,7 @@ export function Dashboard() {
               colorFondo="bg-orange-50"
               colorIcono="text-orange-500"
               icono={<IcoAlerta className="w-6 h-6" />}
+              onClick={() => abrirKPI('urgentes', resumen.totalUrgentes)}
             />
             <TarjetaKPI
               titulo="Etapas vencidas"
@@ -382,6 +486,7 @@ export function Dashboard() {
               colorFondo="bg-red-50"
               colorIcono="text-red-500"
               icono={<IcoReloj className="w-6 h-6" />}
+              onClick={() => abrirKPI('vencidas', resumen.alertas.etapasVencidas)}
             />
             <TarjetaKPI
               titulo="Próximas a vencer"
@@ -392,6 +497,7 @@ export function Dashboard() {
               colorFondo="bg-amber-50"
               colorIcono="text-amber-500"
               icono={<IcoCalendario className="w-6 h-6" />}
+              onClick={() => abrirKPI('proximas', resumen.alertas.etapasProximasAVencer)}
             />
           </div>
 

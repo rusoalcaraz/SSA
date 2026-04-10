@@ -1,11 +1,34 @@
 import { useState, useEffect } from 'react'
 import { useParams, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { procedimientosService } from '../../services/procedimientos.service'
-import type { Procedimiento } from '../../types'
+import { mensajeDeError } from '../../services/api'
+import type { Procedimiento, InfoCronograma } from '../../types'
 import { useAuth } from '../../hooks/useAuth'
 import { Badge } from '../../components/ui/Badge'
 import { Spinner } from '../../components/ui/Spinner'
-import { ETIQUETA_ETAPA, ETIQUETA_TIPO_LARGO, formatearMonto, formatearFecha } from '../../utils/formato'
+import { Modal } from '../../components/ui/Modal'
+import { ETIQUETA_ETAPA } from '../../utils/formato'
+
+const INPUT = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+const LABEL = 'block text-xs font-medium text-gray-600 mb-1'
+
+function campoVacio(val: string | number | boolean | null | undefined): boolean {
+  return val === undefined || val === null || val === ''
+}
+
+function CampoInfo({ label, valor }: { label: string; valor?: string | number | boolean | null }) {
+  const vacio = campoVacio(valor)
+  const texto =
+    typeof valor === 'boolean'
+      ? valor ? 'Sí' : 'No'
+      : vacio ? '—' : String(valor)
+  return (
+    <div>
+      <p className="text-xs text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className={`text-sm mt-0.5 ${vacio ? 'text-gray-300 italic' : 'text-gray-800 font-medium'}`}>{texto}</p>
+    </div>
+  )
+}
 
 // El procedimiento se pasa por contexto a las tabs hijas via outlet context
 export function DetalleProcedimiento() {
@@ -19,6 +42,37 @@ export function DetalleProcedimiento() {
   const [contador, setContador] = useState(0)
 
   const recargar = () => setContador((c) => c + 1)
+
+  // Modal edición datos generales
+  const [modalInfo, setModalInfo] = useState(false)
+  const [formInfo, setFormInfo] = useState<InfoCronograma>({})
+  const [enviandoInfo, setEnviandoInfo] = useState(false)
+  const [errorInfo, setErrorInfo] = useState<string | null>(null)
+
+  function abrirModalInfo() {
+    setFormInfo({ ...(procedimiento?.infoCronograma ?? {}) })
+    setErrorInfo(null)
+    setModalInfo(true)
+  }
+
+  function setInfoField(campo: keyof InfoCronograma, valor: string | number | boolean | null) {
+    setFormInfo((prev) => ({ ...prev, [campo]: valor }))
+  }
+
+  async function guardarInfo() {
+    if (!procedimiento) return
+    setErrorInfo(null)
+    setEnviandoInfo(true)
+    try {
+      await procedimientosService.actualizarInfoCronograma(procedimiento._id, formInfo)
+      recargar()
+      setModalInfo(false)
+    } catch (err) {
+      setErrorInfo(mensajeDeError(err))
+    } finally {
+      setEnviandoInfo(false)
+    }
+  }
 
   useEffect(() => {
     if (!id) return
@@ -46,6 +100,7 @@ export function DetalleProcedimiento() {
     )
   }
 
+  const puedeEditarInfo = tieneRol('superadmin', 'area_contratante', 'asesor_tecnico')
   const puedeVerCronograma = tieneRol('superadmin', 'area_contratante', 'asesor_tecnico', 'dgt', 'gerencial')
   const puedeVerHoja = puedeVerCronograma
   const puedeVerEntregas = tieneRol('superadmin', 'area_contratante', 'asesor_tecnico', 'dgt', 'gerencial', 'inspeccion')
@@ -92,61 +147,43 @@ export function DetalleProcedimiento() {
               <p className="text-sm text-gray-500 mt-1">{procedimiento.descripcion}</p>
             )}
           </div>
+          {puedeEditarInfo && (
+            <button
+              onClick={abrirModalInfo}
+              className="text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors shrink-0"
+            >
+              {Object.values(procedimiento.infoCronograma ?? {}).some((v) => !campoVacio(v))
+                ? 'Editar datos'
+                : '+ Capturar datos'}
+            </button>
+          )}
         </div>
 
-        {/* Grilla de metadatos */}
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-4">
-          <div>
-            <dt className="text-xs font-medium text-gray-400 uppercase tracking-wide">Tipo</dt>
-            <dd className="mt-0.5 text-gray-800">{ETIQUETA_TIPO_LARGO[procedimiento.tipoProcedimiento]}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-gray-400 uppercase tracking-wide">DG</dt>
-            <dd className="mt-0.5 text-gray-800">
-              {procedimiento.direccionGeneral?.siglas} — {procedimiento.direccionGeneral?.nombre}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-gray-400 uppercase tracking-wide">AT Titular</dt>
-            <dd className="mt-0.5 text-gray-800">
-              {procedimiento.asesorTitular
-                ? `${procedimiento.asesorTitular.nombre} ${procedimiento.asesorTitular.apellidos}`
-                : '—'}
-            </dd>
-          </div>
-          {procedimiento.asesorSuplente && (
-            <div>
-              <dt className="text-xs font-medium text-gray-400 uppercase tracking-wide">AT Suplente</dt>
-              <dd className="mt-0.5 text-gray-800">
-                {procedimiento.asesorSuplente.nombre} {procedimiento.asesorSuplente.apellidos}
-              </dd>
-            </div>
-          )}
-          <div>
-            <dt className="text-xs font-medium text-gray-400 uppercase tracking-wide">Anio fiscal</dt>
-            <dd className="mt-0.5 text-gray-800">{procedimiento.anioFiscal}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-gray-400 uppercase tracking-wide">Bien / Servicio</dt>
-            <dd className="mt-0.5 text-gray-800">
-              {procedimiento.bienServicio
-                ? `${procedimiento.bienServicio.clave} — ${procedimiento.bienServicio.descripcion}`
-                : '—'}
-            </dd>
-          </div>
-          {procedimiento.montoEstimado && (
-            <div>
-              <dt className="text-xs font-medium text-gray-400 uppercase tracking-wide">Monto estimado</dt>
-              <dd className="mt-0.5 text-gray-800">
-                {formatearMonto(procedimiento.montoEstimado, procedimiento.moneda)}
-              </dd>
-            </div>
-          )}
-          <div>
-            <dt className="text-xs font-medium text-gray-400 uppercase tracking-wide">Creado</dt>
-            <dd className="mt-0.5 text-gray-800">{formatearFecha(procedimiento.createdAt)}</dd>
-          </div>
-        </dl>
+        {/* Datos generales del cronograma */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
+          {(() => {
+            const info = procedimiento.infoCronograma ?? {}
+            return (
+              <>
+                <CampoInfo label="Organismo" valor={info.organismo} />
+                <CampoInfo label="Fecha" valor={info.fecha ? new Date(info.fecha).toLocaleDateString('es-MX') : undefined} />
+                <CampoInfo label="Asesor tecnico" valor={info.asesorTecnico} />
+                <CampoInfo label="Fuente de financiamiento" valor={info.fuenteFinanciamiento} />
+                <CampoInfo label="Telefono celular" valor={info.telefonoCelular} />
+                <CampoInfo label="Extension satelital" valor={info.extensionSatelital} />
+                <CampoInfo label="Nombre del procedimiento" valor={info.nombreProcedimientoContratacion} />
+                <CampoInfo label="No. de partidas" valor={info.numeroPartidas} />
+                <CampoInfo label="No. de articulos" valor={info.numeroArticulos} />
+                <CampoInfo label="Capitulo de gasto" valor={info.capituloGasto} />
+                <CampoInfo label="Requiere anualidad" valor={info.requiereAnualidad} />
+                <CampoInfo label="No. oficio plurianualidad" valor={info.numeroOficioPlurianualidad} />
+                <CampoInfo label="Clave de cartera" valor={info.claveCartera} />
+                <CampoInfo label="No. de clave de cartera" valor={info.numeroClaveCartera} />
+                <CampoInfo label="Tiempos reducidos" valor={procedimiento.urgente} />
+              </>
+            )
+          })()}
+        </div>
 
         {/* Justificacion de tiempos reducidos */}
         {procedimiento.urgente && procedimiento.justificacionUrgencia && (
@@ -177,6 +214,122 @@ export function DetalleProcedimiento() {
             <Outlet context={{ procedimiento, recargar }} />
           </div>
         </div>
+      )}
+
+      {/* Modal edición datos generales del cronograma */}
+      {modalInfo && (
+        <Modal titulo="Datos generales del cronograma" onClose={() => !enviandoInfo && setModalInfo(false)} className="max-w-2xl">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={LABEL}>Organismo</label>
+              <input className={INPUT} value={formInfo.organismo ?? ''} onChange={(e) => setInfoField('organismo', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>Fecha</label>
+              <input
+                type="date"
+                className={INPUT}
+                value={formInfo.fecha ? formInfo.fecha.split('T')[0] : ''}
+                onChange={(e) => setInfoField('fecha', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={LABEL}>Asesor tecnico</label>
+              <input className={INPUT} value={formInfo.asesorTecnico ?? ''} onChange={(e) => setInfoField('asesorTecnico', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>Fuente de financiamiento</label>
+              <input className={INPUT} value={formInfo.fuenteFinanciamiento ?? ''} onChange={(e) => setInfoField('fuenteFinanciamiento', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>Telefono celular (asesor tecnico)</label>
+              <input className={INPUT} value={formInfo.telefonoCelular ?? ''} onChange={(e) => setInfoField('telefonoCelular', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>Extension satelital</label>
+              <input className={INPUT} value={formInfo.extensionSatelital ?? ''} onChange={(e) => setInfoField('extensionSatelital', e.target.value)} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={LABEL}>Nombre del procedimiento de contratacion</label>
+              <input className={INPUT} value={formInfo.nombreProcedimientoContratacion ?? ''} onChange={(e) => setInfoField('nombreProcedimientoContratacion', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>No. de partidas</label>
+              <input
+                type="number"
+                min={0}
+                className={INPUT}
+                value={formInfo.numeroPartidas ?? ''}
+                onChange={(e) => setInfoField('numeroPartidas', e.target.value === '' ? 0 : Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label className={LABEL}>No. de articulos</label>
+              <input
+                type="number"
+                min={0}
+                className={INPUT}
+                value={formInfo.numeroArticulos ?? ''}
+                onChange={(e) => setInfoField('numeroArticulos', e.target.value === '' ? 0 : Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label className={LABEL}>Capitulo de gasto</label>
+              <input className={INPUT} value={formInfo.capituloGasto ?? ''} onChange={(e) => setInfoField('capituloGasto', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>Requiere anualidad</label>
+              <select
+                className={INPUT}
+                value={formInfo.requiereAnualidad === true ? 'si' : formInfo.requiereAnualidad === false ? 'no' : ''}
+                onChange={(e) =>
+                  setInfoField('requiereAnualidad', e.target.value === 'si' ? true : e.target.value === 'no' ? false : null)
+                }
+              >
+                <option value="">— Seleccionar —</option>
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className={LABEL}>No. de oficio autorizando la plurianualidad (o "NO APLICA")</label>
+              <input
+                className={INPUT}
+                placeholder="Ej. DN-123/2026 o NO APLICA"
+                value={formInfo.numeroOficioPlurianualidad ?? ''}
+                onChange={(e) => setInfoField('numeroOficioPlurianualidad', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={LABEL}>Clave de cartera</label>
+              <input className={INPUT} value={formInfo.claveCartera ?? ''} onChange={(e) => setInfoField('claveCartera', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>No. de clave de cartera</label>
+              <input className={INPUT} value={formInfo.numeroClaveCartera ?? ''} onChange={(e) => setInfoField('numeroClaveCartera', e.target.value)} />
+            </div>
+          </div>
+
+          {errorInfo && <p className="text-sm text-red-600 mt-4">{errorInfo}</p>}
+
+          <div className="flex gap-3 mt-5">
+            <button
+              onClick={guardarInfo}
+              disabled={enviandoInfo}
+              className="flex-1 py-2 bg-blue-900 hover:bg-blue-800 disabled:bg-blue-300 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+            >
+              {enviandoInfo && <Spinner className="h-4 w-4 text-white" />}
+              Guardar
+            </button>
+            <button
+              onClick={() => setModalInfo(false)}
+              disabled={enviandoInfo}
+              className="flex-1 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   )

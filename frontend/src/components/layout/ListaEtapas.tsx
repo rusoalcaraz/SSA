@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { EtapaProcedimiento, Procedimiento } from '../../types'
 import { useAuth } from '../../hooks/useAuth'
 import { etapasService } from '../../services/etapas.service'
@@ -32,6 +32,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
   const [modal, setModal] = useState<AccionModal>(null)
   const [enviando, setEnviando] = useState(false)
   const [errorModal, setErrorModal] = useState<string | null>(null)
+  const scrollYRef = useRef<number>(0)
 
   // Campos de formularios dentro de modales
   const [fechaInput, setFechaInput] = useState('')
@@ -46,6 +47,8 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
     setMotivoInput('')
     setRespuestaInput('')
     setObservacionInput('')
+    const cont = document.getElementById('app-scroll')
+    scrollYRef.current = cont ? cont.scrollTop : window.scrollY
   }
 
   function cerrarModal() {
@@ -59,6 +62,12 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
       await fn()
       setModal(null)
       onActualizar()
+      const y = scrollYRef.current
+      requestAnimationFrame(() => {
+        const cont = document.getElementById('app-scroll')
+        if (cont) cont.scrollTo({ top: y, behavior: 'auto' })
+        else window.scrollTo({ top: y, behavior: 'auto' })
+      })
     } catch (err) {
       setErrorModal(mensajeDeError(err))
     } finally {

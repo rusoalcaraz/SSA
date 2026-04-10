@@ -239,15 +239,25 @@ export function NuevoProcedimiento() {
                 disabled={enviando}
               />
             </Campo>
-            <Campo label="Direccion General" requerido>
+            <Campo label="Organismo (DG)" requerido>
               <select
                 required
                 value={direccionGeneral}
-                onChange={(e) => setDireccionGeneral(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setDireccionGeneral(val)
+                  // Prefijar el "Organismo" del cronograma con las siglas de la DG seleccionada
+                  const dg = dgs.find((x) => x._id === val)
+                  if (dg) {
+                    setInfoCronograma((v) => ({ ...v, organismo: dg.siglas || dg.nombre }))
+                  } else {
+                    setInfoCronograma((v) => ({ ...v, organismo: '' }))
+                  }
+                }}
                 className={SELECT}
                 disabled={enviando}
               >
-                <option value="">Seleccionar DG</option>
+                <option value="">Seleccionar organismo</option>
                 {dgs.map((dg) => (
                   <option key={dg._id} value={dg._id}>
                     {dg.siglas} — {dg.nombre}

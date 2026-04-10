@@ -16,7 +16,6 @@ import { Entregas } from './pages/procedimientos/Entregas'
 
 import { Reportes } from './pages/Reportes'
 import { Usuarios } from './pages/admin/Usuarios'
-import { Catalogos } from './pages/admin/Catalogos'
 import { DireccionesGenerales } from './pages/admin/DireccionesGenerales'
 
 export default function App() {
@@ -96,7 +95,6 @@ export default function App() {
                 element={<ProtectedRoute roles={['superadmin']} />}
               >
                 <Route path="usuarios" element={<Usuarios />} />
-                <Route path="catalogos" element={<Catalogos />} />
                 <Route path="direcciones-generales" element={<DireccionesGenerales />} />
               </Route>
 

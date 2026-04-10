@@ -20,6 +20,10 @@ const direccionGeneralSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    tipo: {
+      type: String,
+      enum: ['organo_de_direccion', 'area_contratante', 'area_requiriente', 'area_usuaria'],
+    },
     activa: {
       type: Boolean,
       default: true,

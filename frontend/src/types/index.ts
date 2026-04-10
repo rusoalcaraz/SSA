@@ -21,11 +21,18 @@ export interface UsuarioResumen {
   direccionGeneral: string | null
 }
 
+export type TipoOrganismo =
+  | 'organo_de_direccion'
+  | 'area_contratante'
+  | 'area_requiriente'
+  | 'area_usuaria'
+
 export interface DireccionGeneral {
   _id: string
   nombre: string
   siglas: string
   descripcion?: string
+  tipo?: TipoOrganismo
   activa: boolean
 }
 

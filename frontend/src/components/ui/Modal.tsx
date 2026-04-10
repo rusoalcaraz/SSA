@@ -8,13 +8,31 @@ interface Props {
 }
 
 export function Modal({ titulo, onClose, children, className = '' }: Props) {
-  // Cerrar con Escape
   useEffect(() => {
+    const cont = document.getElementById('app-scroll')
+    const scroller = cont || document.scrollingElement || document.documentElement
+    const prevOverflow = (scroller as HTMLElement).style.overflow
+    const prevScrollTop = scroller instanceof HTMLElement ? scroller.scrollTop : window.scrollY || 0
+    if (scroller instanceof HTMLElement) {
+      scroller.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'hidden'
+    }
+
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('keydown', handleKey)
+      if (scroller instanceof HTMLElement) {
+        scroller.style.overflow = prevOverflow
+        scroller.scrollTo({ top: prevScrollTop, behavior: 'auto' })
+      } else {
+        document.body.style.overflow = prevOverflow
+        window.scrollTo({ top: prevScrollTop, behavior: 'auto' })
+      }
+    }
   }, [onClose])
 
   return (

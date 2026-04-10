@@ -19,6 +19,20 @@ export interface ResumenDashboard {
   }
 }
 
+export type TipoKPI = 'total' | 'urgentes' | 'vencidas' | 'proximas'
+
+export interface ProcedimientoKPI {
+  _id: string
+  numeroProcedimiento?: string
+  titulo: string
+  tipoProcedimiento: TipoProcedimiento
+  etapaActual: EtapaActual
+  urgente: boolean
+  direccionGeneral?: { _id: string; nombre: string; siglas: string }
+  asesorTitular?: { _id: string; nombre: string; apellidos: string }
+  etapasRelevantes?: { nombre: string; fechaPlaneada: string }[]
+}
+
 async function resumen(anioFiscal?: number): Promise<ResumenDashboard> {
   const { data } = await api.get<ApiResponse<ResumenDashboard>>('/dashboard/resumen', {
     params: anioFiscal ? { anioFiscal } : {},
@@ -26,4 +40,11 @@ async function resumen(anioFiscal?: number): Promise<ResumenDashboard> {
   return data.data
 }
 
-export const dashboardService = { resumen }
+async function kpiDetalle(tipo: TipoKPI, anioFiscal?: number): Promise<ProcedimientoKPI[]> {
+  const { data } = await api.get<ApiResponse<ProcedimientoKPI[]>>('/dashboard/kpi-detalle', {
+    params: { tipo, ...(anioFiscal ? { anioFiscal } : {}) },
+  })
+  return data.data
+}
+
+export const dashboardService = { resumen, kpiDetalle }

@@ -30,4 +30,11 @@ router.get(
   ctrl.misProcedimientos
 );
 
+// GET /api/v1/dashboard/kpi-detalle
+router.get(
+  '/kpi-detalle',
+  checkRole(['superadmin', 'gerencial']),
+  ctrl.kpiDetalle
+);
+
 module.exports = router;

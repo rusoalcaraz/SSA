@@ -1,5 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { DireccionGeneral } from '../../types'
+import type { DireccionGeneral, TipoOrganismo } from '../../types'
+
+const TIPOS_ORGANISMO: { value: TipoOrganismo; label: string }[] = [
+  { value: 'organo_de_direccion', label: 'Órgano de dirección' },
+  { value: 'area_contratante', label: 'Área Contratante' },
+  { value: 'area_requiriente', label: 'Área Requiriente' },
+  { value: 'area_usuaria', label: 'Área Usuaria' },
+]
+
+function etiquetaTipo(tipo?: TipoOrganismo): string {
+  return TIPOS_ORGANISMO.find((t) => t.value === tipo)?.label ?? '—'
+}
 import { catalogosService } from '../../services/catalogos.service'
 import { mensajeDeError } from '../../services/api'
 import { Modal } from '../../components/ui/Modal'
@@ -21,6 +32,7 @@ function ModalDG({
     nombre: dg?.nombre ?? '',
     siglas: dg?.siglas ?? '',
     descripcion: dg?.descripcion ?? '',
+    tipo: dg?.tipo ?? '' as TipoOrganismo | '',
   })
   const [guardando, setGuardando] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -35,12 +47,14 @@ function ModalDG({
           nombre: form.nombre,
           siglas: form.siglas,
           descripcion: form.descripcion || undefined,
+          tipo: form.tipo || undefined,
         })
       } else {
         await catalogosService.crearDG({
           nombre: form.nombre,
           siglas: form.siglas,
           descripcion: form.descripcion || undefined,
+          tipo: form.tipo || undefined,
         })
       }
       onGuardado()
@@ -52,7 +66,7 @@ function ModalDG({
   }
 
   return (
-    <Modal titulo={dg ? 'Editar Direccion General' : 'Nueva Direccion General'} onClose={onClose}>
+    <Modal titulo={dg ? 'Editar Organismo' : 'Nuevo Organismo'} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -88,6 +102,19 @@ function ModalDG({
             onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+          <select
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
+            value={form.tipo}
+            onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as TipoOrganismo | '' }))}
+          >
+            <option value="">— Sin tipo —</option>
+            {TIPOS_ORGANISMO.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
         {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <button
@@ -119,6 +146,7 @@ export function DireccionesGenerales() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [modalDG, setModalDG] = useState<DireccionGeneral | null | 'nueva'>(null)
   const [desactivando, setDesactivando] = useState<string | null>(null)
+  const [eliminando, setEliminando] = useState<string | null>(null)
 
   const cargar = useCallback(() => {
     setCargando(true)
@@ -132,7 +160,7 @@ export function DireccionesGenerales() {
   useEffect(() => { cargar() }, [cargar])
 
   async function handleDesactivar(dg: DireccionGeneral) {
-    if (!confirm(`¿Desactivar "${dg.nombre}"? Los usuarios DGT de esta DG quedaran sin asignacion.`)) return
+    if (!confirm(`¿Eliminar "${dg.nombre}"? Los usuarios DGT de este organismo quedaran sin asignacion.`)) return
     setDesactivando(dg._id)
     try {
       await catalogosService.desactivarDG(dg._id)
@@ -144,16 +172,29 @@ export function DireccionesGenerales() {
     }
   }
 
+  async function handleEliminarDefinitivo(dg: DireccionGeneral) {
+    if (!confirm(`¿Eliminar definitivamente "${dg.nombre}"? Esta accion no se puede deshacer.`)) return
+    setEliminando(dg._id)
+    try {
+      await catalogosService.eliminarDGDefinitivo(dg._id)
+      cargar()
+    } catch (err) {
+      setErrorMsg(mensajeDeError(err))
+    } finally {
+      setEliminando(null)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Direcciones Generales</h1>
+        <h1 className="text-xl font-bold text-gray-900">Organismos</h1>
         <button
           type="button"
           onClick={() => setModalDG('nueva')}
           className="px-4 py-2 text-sm rounded-md bg-blue-900 text-white hover:bg-blue-800 transition-colors"
         >
-          Nueva DG
+          Nuevo Organismo
         </button>
       </div>
 
@@ -170,13 +211,14 @@ export function DireccionesGenerales() {
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           {dgs.length === 0 ? (
-            <p className="py-12 text-center text-sm text-gray-400">Sin direcciones generales registradas.</p>
+            <p className="py-12 text-center text-sm text-gray-400">Sin organismos registrados.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Siglas</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Nombre</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Organismos</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Tipo</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Descripcion</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Estado</th>
                   <th className="px-4 py-3" />
@@ -187,6 +229,7 @@ export function DireccionesGenerales() {
                   <tr key={dg._id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-mono font-semibold text-gray-800">{dg.siglas}</td>
                     <td className="px-4 py-3 text-gray-800">{dg.nombre}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{etiquetaTipo(dg.tipo)}</td>
                     <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{dg.descripcion ?? '—'}</td>
                     <td className="px-4 py-3">
                       <span
@@ -208,14 +251,23 @@ export function DireccionesGenerales() {
                         >
                           Editar
                         </button>
-                        {dg.activa && (
+                        {dg.activa ? (
                           <button
                             type="button"
                             disabled={desactivando === dg._id}
                             onClick={() => handleDesactivar(dg)}
                             className="text-xs text-red-600 hover:underline disabled:opacity-50"
                           >
-                            {desactivando === dg._id ? 'Desactivando...' : 'Desactivar'}
+                            {desactivando === dg._id ? 'Eliminando...' : 'Eliminar'}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={eliminando === dg._id}
+                            onClick={() => handleEliminarDefinitivo(dg)}
+                            className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                          >
+                            {eliminando === dg._id ? 'Eliminando...' : 'Eliminar definitivamente'}
                           </button>
                         )}
                       </div>

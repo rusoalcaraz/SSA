@@ -256,4 +256,78 @@ async function misProcedimientos(req, res, next) {
   }
 }
 
-module.exports = { resumen, porDG, misProcedimientos };
+// -------------------------------------------------------
+// GET /api/v1/dashboard/kpi-detalle?tipo=urgentes|vencidas|proximas|total&anioFiscal=
+// Roles: gerencial, superadmin
+// -------------------------------------------------------
+async function kpiDetalle(req, res, next) {
+  try {
+    const { tipo, anioFiscal } = req.query;
+    const filtroBase = {};
+    if (anioFiscal) filtroBase.anioFiscal = Number(anioFiscal);
+
+    const CAMPOS_BASE = 'numeroProcedimiento titulo tipoProcedimiento etapaActual urgente direccionGeneral asesorTitular';
+    const POPULATE_OPTIONS = [
+      { path: 'direccionGeneral', select: 'nombre siglas' },
+      { path: 'asesorTitular', select: 'nombre apellidos' },
+    ];
+
+    let resultado = [];
+
+    if (tipo === 'total') {
+      resultado = await Procedimiento.find(filtroBase)
+        .populate(POPULATE_OPTIONS)
+        .select(CAMPOS_BASE)
+        .sort({ urgente: -1, createdAt: -1 })
+        .limit(100)
+        .lean();
+
+    } else if (tipo === 'urgentes') {
+      resultado = await Procedimiento.find({ ...filtroBase, urgente: true })
+        .populate(POPULATE_OPTIONS)
+        .select(CAMPOS_BASE)
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .lean();
+
+    } else if (tipo === 'vencidas' || tipo === 'proximas') {
+      const hoy = HOY();
+      const enTresDias = EN_TRES_DIAS();
+
+      const todosProcs = await Procedimiento.find({
+        ...filtroBase,
+        etapaActual: { $nin: ['concluido', 'cancelado'] },
+      })
+        .populate(POPULATE_OPTIONS)
+        .select(`${CAMPOS_BASE} cronograma.estado cronograma.fechaPlaneada cronograma.nombre hojaDeTrabajoEtapas.estado hojaDeTrabajoEtapas.fechaPlaneada hojaDeTrabajoEtapas.nombre`)
+        .lean();
+
+      resultado = todosProcs
+        .map((proc) => {
+          const todasEtapas = [...(proc.cronograma || []), ...(proc.hojaDeTrabajoEtapas || [])];
+          const etapasRelevantes = todasEtapas
+            .filter((e) => ESTADOS_ACTIVOS.includes(e.estado) && e.fechaPlaneada)
+            .filter((e) => {
+              const fecha = new Date(e.fechaPlaneada);
+              return tipo === 'vencidas' ? fecha < hoy : (fecha >= hoy && fecha <= enTresDias);
+            })
+            .map((e) => ({ nombre: e.nombre, fechaPlaneada: e.fechaPlaneada }));
+
+          if (etapasRelevantes.length === 0) return null;
+
+          const { cronograma, hojaDeTrabajoEtapas, ...resto } = proc;
+          return { ...resto, etapasRelevantes };
+        })
+        .filter(Boolean);
+
+    } else {
+      throw crearError(400, 'TIPO_INVALIDO', 'Tipo de KPI no reconocido. Use: total, urgentes, vencidas, proximas');
+    }
+
+    return ok(res, resultado, 'Detalle KPI obtenido');
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { resumen, porDG, misProcedimientos, kpiDetalle };
