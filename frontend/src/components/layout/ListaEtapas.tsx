@@ -32,6 +32,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
   const [modal, setModal] = useState<AccionModal>(null)
   const [enviando, setEnviando] = useState(false)
   const [errorModal, setErrorModal] = useState<string | null>(null)
+  const [menuAcciones, setMenuAcciones] = useState<string | null>(null)
   const scrollYRef = useRef<number>(0)
 
   // Campos de formularios dentro de modales
@@ -116,15 +117,15 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                   : 'border-gray-200 bg-white'
               }`}
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col md:flex-row items-start justify-between gap-3">
                 {/* Numero de orden + info */}
-                <div className="flex items-start gap-3 min-w-0">
+                <div className="flex items-start gap-3 min-w-0 w-full">
                   <span className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-200 text-gray-600 text-xs font-bold flex items-center justify-center mt-0.5">
                     {idx + 1}
                   </span>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className={`font-medium text-sm ${etapa.noAplica ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                      <p className={`font-medium text-sm ${etapa.noAplica ? 'text-gray-400 line-through' : 'text-gray-900'} break-words`}>
                         {etapa.nombre}
                       </p>
                       {etapa.noAplica ? (
@@ -139,7 +140,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                       )}
                     </div>
 
-                    <div className="flex gap-4 mt-1.5 text-xs text-gray-500 flex-wrap">
+                    <div className="flex gap-3 md:gap-4 mt-1.5 text-xs text-gray-500 flex-wrap">
                       {etapa.fechaPlaneada && (
                         <span>
                           <span className="font-medium">Planeada:</span>{' '}
@@ -179,7 +180,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                 </div>
 
                 {/* Acciones */}
-                <div className="flex gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                <div className="flex gap-1.5 flex-shrink-0 flex-wrap justify-start md:justify-end w-full md:w-auto mt-3 md:mt-0 relative">
                   {puedeCompletar && (
                     <button
                       onClick={() => abrirModal({ tipo: 'completar', etapa })}
@@ -215,7 +216,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                   {puedeObservacion && (
                     <button
                       onClick={() => abrirModal({ tipo: 'observacion', etapa })}
-                      className="px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                      className="hidden md:inline-flex px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
                     >
                       + Observacion
                     </button>
@@ -223,7 +224,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                   {puedeNoAplica && (
                     <button
                       onClick={() => abrirModal({ tipo: 'noAplica', etapa })}
-                      className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                      className={`hidden md:inline-flex px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                         etapa.noAplica
                           ? 'text-gray-600 bg-gray-200 hover:bg-gray-300'
                           : 'text-gray-500 bg-gray-100 hover:bg-gray-200'
@@ -235,10 +236,60 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                   {etapa.historialFechas.length > 0 && (
                     <button
                       onClick={() => abrirModal({ tipo: 'historial', etapa })}
-                      className="px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                      className="hidden md:inline-flex px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
                     >
                       Historial
                     </button>
+                  )}
+                  {/* Menú móvil para acciones secundarias */}
+                  {(puedeObservacion || puedeNoAplica || etapa.historialFechas.length > 0) && (
+                    <div className="md:hidden">
+                      <button
+                        onClick={() => setMenuAcciones((m) => (m === etapa._id ? null : etapa._id))}
+                        className="px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                      >
+                        Más
+                      </button>
+                      {menuAcciones === etapa._id && (
+                        <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                          <div className="py-1">
+                            {puedeObservacion && (
+                              <button
+                                onClick={() => {
+                                  setMenuAcciones(null)
+                                  abrirModal({ tipo: 'observacion', etapa })
+                                }}
+                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                + Observacion
+                              </button>
+                            )}
+                            {puedeNoAplica && (
+                              <button
+                                onClick={() => {
+                                  setMenuAcciones(null)
+                                  abrirModal({ tipo: 'noAplica', etapa })
+                                }}
+                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                {etapa.noAplica ? 'Reactivar' : 'No aplica'}
+                              </button>
+                            )}
+                            {etapa.historialFechas.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  setMenuAcciones(null)
+                                  abrirModal({ tipo: 'historial', etapa })
+                                }}
+                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                Historial
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

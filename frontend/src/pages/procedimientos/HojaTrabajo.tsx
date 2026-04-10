@@ -75,44 +75,6 @@ export function HojaTrabajo() {
 
   return (
     <div className="space-y-5">
-      {/* Panel de información de cabecera */}
-      <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-indigo-100 bg-indigo-50">
-          <h3 className="text-sm font-semibold text-indigo-900">Datos generales de la hoja de trabajo</h3>
-          {puedeEditar && (
-            <button
-              onClick={abrirModal}
-              className="text-xs font-medium text-indigo-700 hover:text-indigo-900 transition-colors"
-            >
-              {tieneInfo ? 'Editar' : '+ Capturar datos'}
-            </button>
-          )}
-        </div>
-
-        {tieneInfo ? (
-          <div className="px-4 py-4 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
-            <Campo label="Organismo" valor={info.organismo} />
-            <Campo label="Fecha" valor={info.fecha ? new Date(info.fecha).toLocaleDateString('es-MX') : undefined} />
-            <Campo label="Nombre del responsable" valor={info.nombreResponsable} />
-            <Campo label="Telefono celular" valor={info.telefonoCelular} />
-            <Campo label="Extension satelital" valor={info.extensionSatelital} />
-            <Campo label="Nombre del procedimiento" valor={info.nombreProcedimientoContratacion} />
-            <Campo label="Techo presupuestal" valor={info.techoPresupuestal !== undefined ? `$${info.techoPresupuestal.toLocaleString('es-MX')}` : undefined} />
-            <Campo label="Clave de cartera" valor={info.claveCartera} />
-            <Campo label="Origen de los recursos" valor={info.origenRecursos} />
-            <Campo label="Tipo de procedimiento" valor={info.tipoProcedimientoContratacion} />
-            <Campo label="Area contratante" valor={info.areaContratante} />
-            <Campo label="Extension satelital (area contratante)" valor={info.extensionSatelitalAreaContratante} />
-          </div>
-        ) : (
-          <p className="px-4 py-5 text-sm text-gray-400 italic">
-            {puedeEditar
-              ? 'Aun no se han capturado los datos generales. Haz clic en "+ Capturar datos" para comenzar.'
-              : 'Los datos generales aun no han sido capturados.'}
-          </p>
-        )}
-      </div>
-
       {/* Lista de etapas */}
       <ListaEtapas
         procedimiento={procedimiento}

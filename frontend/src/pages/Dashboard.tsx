@@ -448,7 +448,19 @@ export function Dashboard() {
           {/* ── Banner alertas ── */}
           {hayAlertas && (
             <div className="flex flex-wrap gap-3">
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-700 font-medium">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => abrirKPI('vencidas', resumen.alertas.etapasVencidas)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    abrirKPI('vencidas', resumen.alertas.etapasVencidas)
+                  }
+                }}
+                className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-700 font-medium cursor-pointer hover:bg-red-100 transition-colors"
+                title="Ver procedimientos con etapas vencidas"
+              >
                 <IcoReloj className="w-4 h-4 text-red-500" />
                 <span>
                   <strong>{resumen.alertas.etapasVencidas}</strong> etapa{resumen.alertas.etapasVencidas !== 1 ? 's' : ''} vencida{resumen.alertas.etapasVencidas !== 1 ? 's' : ''}
