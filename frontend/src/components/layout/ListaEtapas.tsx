@@ -120,12 +120,12 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
               <div className="flex flex-col md:flex-row items-start justify-between gap-3">
                 {/* Numero de orden + info */}
                 <div className="flex items-start gap-3 min-w-0 w-full">
-                  <span className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-200 text-gray-600 text-xs font-bold flex items-center justify-center mt-0.5">
+                  <span className="shrink-0 w-7 h-7 rounded-full bg-gray-200 text-gray-600 text-xs font-bold flex items-center justify-center mt-0.5">
                     {idx + 1}
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className={`font-medium text-sm ${etapa.noAplica ? 'text-gray-400 line-through' : 'text-gray-900'} break-words`}>
+                      <p className={`font-medium text-sm ${etapa.noAplica ? 'text-gray-400 line-through' : 'text-gray-900'} wrap-break-word`}>
                         {etapa.nombre}
                       </p>
                       {etapa.noAplica ? (
@@ -180,7 +180,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                 </div>
 
                 {/* Acciones */}
-                <div className="flex gap-1.5 flex-shrink-0 flex-wrap justify-start md:justify-end w-full md:w-auto mt-3 md:mt-0 relative">
+                <div className="flex gap-1.5 shrink-0 flex-wrap justify-start md:justify-end w-full md:w-auto mt-3 md:mt-0 relative">
                   {puedeCompletar && (
                     <button
                       onClick={() => abrirModal({ tipo: 'completar', etapa })}
