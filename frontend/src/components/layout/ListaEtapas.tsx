@@ -56,7 +56,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
     if (!enviando) setModal(null)
   }
 
-  async function ejecutar(fn: () => Promise<void>) {
+  async function ejecutar<T>(fn: () => Promise<T>) {
     setErrorModal(null)
     setEnviando(true)
     try {
@@ -79,8 +79,8 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
   // Determina permisos de este usuario sobre el procedimiento
   const esAT =
     tieneRol('asesor_tecnico') &&
-    (procedimiento.asesorTitular?._id === usuario?.id ||
-      procedimiento.asesorSuplente?._id === usuario?.id)
+    (procedimiento.asesorTitular?._id === usuario?._id ||
+      procedimiento.asesorSuplente?._id === usuario?._id)
   const esAC = tieneRol('area_contratante', 'superadmin')
   const esSuperadmin = tieneRol('superadmin')
 
