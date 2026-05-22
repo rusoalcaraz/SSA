@@ -18,7 +18,7 @@ async function listarDGs(soloActivas = true): Promise<DireccionGeneral[]> {
   return data.data
 }
 
-async function crearDG(payload: { nombre: string; siglas: string; descripcion?: string; tipo?: string }): Promise<DireccionGeneral> {
+async function crearDG(payload: { nombre: string; siglas: string; descripcion?: string }): Promise<DireccionGeneral> {
   const { data } = await api.post<ApiResponse<DireccionGeneral>>(
     '/catalogos/direcciones-generales',
     payload
@@ -28,7 +28,7 @@ async function crearDG(payload: { nombre: string; siglas: string; descripcion?: 
 
 async function actualizarDG(
   id: string,
-  payload: { nombre?: string; siglas?: string; descripcion?: string; tipo?: string; activa?: boolean }
+  payload: { nombre?: string; siglas?: string; descripcion?: string; activa?: boolean }
 ): Promise<DireccionGeneral> {
   const { data } = await api.put<ApiResponse<DireccionGeneral>>(
     `/catalogos/direcciones-generales/${id}`,
@@ -39,10 +39,6 @@ async function actualizarDG(
 
 async function desactivarDG(id: string): Promise<void> {
   await api.delete(`/catalogos/direcciones-generales/${id}`)
-}
-
-async function eliminarDGDefinitivo(id: string): Promise<void> {
-  await api.delete(`/catalogos/direcciones-generales/${id}`, { params: { hard: true } })
 }
 
 // -------------------------------------------------------
@@ -158,7 +154,6 @@ export const catalogosService = {
   crearDG,
   actualizarDG,
   desactivarDG,
-  eliminarDGDefinitivo,
   listarBienesServicios,
   listarTodosBienesServicios,
   crearBienServicio,

@@ -95,7 +95,8 @@ function NavItems({ colapsado }: { colapsado: boolean }) {
   if (tieneRol('superadmin')) {
     items.push(
       { to: '/admin/usuarios', label: 'Usuarios', icon: 'usuarios' },
-      { to: '/admin/direcciones-generales', label: 'Organismos', icon: 'dgs' }
+      { to: '/admin/catalogos', label: 'Catalogos', icon: 'catalogos' },
+      { to: '/admin/direcciones-generales', label: 'Direcciones Generales', icon: 'dgs' }
     )
   }
 
