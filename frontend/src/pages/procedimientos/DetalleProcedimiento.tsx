@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { useParams, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { procedimientosService } from '../../services/procedimientos.service'
 import { mensajeDeError } from '../../services/api'
-import type { Procedimiento, InfoCronograma } from '../../types'
+import type { Procedimiento, InfoCronograma, InfoHojaDeTrabajo } from '../../types'
 import { useAuth } from '../../hooks/useAuth'
 import { Badge } from '../../components/ui/Badge'
 import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
-import { ETIQUETA_ETAPA } from '../../utils/formato'
+import { ETIQUETA_ETAPA, formatearMonto } from '../../utils/formato'
 
 const INPUT = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
 const LABEL = 'block text-xs font-medium text-gray-600 mb-1'
@@ -46,11 +46,13 @@ export function DetalleProcedimiento() {
   // Modal edición datos generales
   const [modalInfo, setModalInfo] = useState(false)
   const [formInfo, setFormInfo] = useState<InfoCronograma>({})
+  const [formHoja, setFormHoja] = useState<Pick<InfoHojaDeTrabajo, 'techoPresupuestal'>>({})
   const [enviandoInfo, setEnviandoInfo] = useState(false)
   const [errorInfo, setErrorInfo] = useState<string | null>(null)
 
   function abrirModalInfo() {
     setFormInfo({ ...(procedimiento?.infoCronograma ?? {}) })
+    setFormHoja({ techoPresupuestal: procedimiento?.infoHojaDeTrabajo?.techoPresupuestal })
     setErrorInfo(null)
     setModalInfo(true)
   }
@@ -59,12 +61,19 @@ export function DetalleProcedimiento() {
     setFormInfo((prev) => ({ ...prev, [campo]: valor }))
   }
 
+  function setHojaField(campo: keyof typeof formHoja, valor: number | undefined) {
+    setFormHoja((prev) => ({ ...prev, [campo]: valor }))
+  }
+
   async function guardarInfo() {
     if (!procedimiento) return
     setErrorInfo(null)
     setEnviandoInfo(true)
     try {
-      await procedimientosService.actualizarInfoCronograma(procedimiento._id, formInfo)
+      await Promise.all([
+        procedimientosService.actualizarInfoCronograma(procedimiento._id, formInfo),
+        procedimientosService.actualizarInfoHojaDeTrabajo(procedimiento._id, formHoja),
+      ])
       recargar()
       setModalInfo(false)
     } catch (err) {
@@ -115,6 +124,10 @@ export function DetalleProcedimiento() {
   const TAB_ACTIVO = 'border-blue-900 text-blue-900'
   const TAB_INACTIVO = 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
 
+  const tieneInfo =
+    Object.values(procedimiento.infoCronograma ?? {}).some((v) => !campoVacio(v)) ||
+    typeof procedimiento.infoHojaDeTrabajo?.techoPresupuestal === 'number'
+
   return (
     <div>
       {/* Boton volver */}
@@ -152,9 +165,7 @@ export function DetalleProcedimiento() {
               onClick={abrirModalInfo}
               className="text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors shrink-0"
             >
-              {Object.values(procedimiento.infoCronograma ?? {}).some((v) => !campoVacio(v))
-                ? 'Editar datos'
-                : '+ Capturar datos'}
+              {tieneInfo ? 'Editar datos' : '+ Capturar datos'}
             </button>
           )}
         </div>
@@ -163,6 +174,10 @@ export function DetalleProcedimiento() {
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
           {(() => {
             const info = procedimiento.infoCronograma ?? {}
+            const techoPresupuestal =
+              typeof procedimiento.infoHojaDeTrabajo?.techoPresupuestal === 'number'
+                ? formatearMonto(procedimiento.infoHojaDeTrabajo.techoPresupuestal, procedimiento.moneda)
+                : undefined
             return (
               <>
                 <CampoInfo label="Organismo" valor={info.organismo} />
@@ -172,6 +187,7 @@ export function DetalleProcedimiento() {
                 <CampoInfo label="Telefono celular" valor={info.telefonoCelular} />
                 <CampoInfo label="Extension satelital" valor={info.extensionSatelital} />
                 <CampoInfo label="Nombre del procedimiento" valor={info.nombreProcedimientoContratacion} />
+                <CampoInfo label="Techo presupuestal" valor={techoPresupuestal} />
                 <CampoInfo label="No. de partidas" valor={info.numeroPartidas} />
                 <CampoInfo label="No. de articulos" valor={info.numeroArticulos} />
                 <CampoInfo label="Capitulo de gasto" valor={info.capituloGasto} />
@@ -307,6 +323,19 @@ export function DetalleProcedimiento() {
             <div>
               <label className={LABEL}>No. de clave de cartera</label>
               <input className={INPUT} value={formInfo.numeroClaveCartera ?? ''} onChange={(e) => setInfoField('numeroClaveCartera', e.target.value)} />
+            </div>
+            <div>
+              <label className={LABEL}>Techo presupuestal</label>
+              <input
+                type="number"
+                min={0}
+                className={INPUT}
+                placeholder="0.00"
+                value={formHoja.techoPresupuestal ?? ''}
+                onChange={(e) =>
+                  setHojaField('techoPresupuestal', e.target.value === '' ? undefined : Number(e.target.value))
+                }
+              />
             </div>
           </div>
 
