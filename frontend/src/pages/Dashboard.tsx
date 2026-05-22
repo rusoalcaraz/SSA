@@ -309,7 +309,7 @@ export function Dashboard() {
   const datosEtapa: DonutSlice[] = resumen
     ? ETAPA_ORDEN.filter((e) => (resumen.porEtapaActual[e] ?? 0) > 0).map((e) => ({
         label: ETIQUETA_ETAPA[e],
-        value: resumen.porEtapaActual[e],
+        value: resumen.porEtapaActual[e] ?? 0,
         color: ETAPA_COLORS[e],
       }))
     : []
@@ -330,7 +330,7 @@ export function Dashboard() {
     : []
   const maxDG = datosDG.reduce((m, d) => Math.max(m, d.total), 0)
 
-  const hayAlertas = resumen && resumen.alertas.etapasVencidas > 0
+  // Eliminado banner de alertas; KPI cubre esta indicacion
 
   return (
     <div className="space-y-6">
@@ -445,29 +445,7 @@ export function Dashboard() {
 
       {resumen && !cargando && (
         <>
-          {/* ── Banner alertas ── */}
-          {hayAlertas && (
-            <div className="flex flex-wrap gap-3">
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => abrirKPI('vencidas', resumen.alertas.etapasVencidas)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    abrirKPI('vencidas', resumen.alertas.etapasVencidas)
-                  }
-                }}
-                className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-700 font-medium cursor-pointer hover:bg-red-100 transition-colors"
-                title="Ver procedimientos con etapas vencidas"
-              >
-                <IcoReloj className="w-4 h-4 text-red-500" />
-                <span>
-                  <strong>{resumen.alertas.etapasVencidas}</strong> etapa{resumen.alertas.etapasVencidas !== 1 ? 's' : ''} vencida{resumen.alertas.etapasVencidas !== 1 ? 's' : ''}
-                </span>
-              </div>
-            </div>
-          )}
+          {/* Banner de alertas eliminado: el KPI de \"Etapas vencidas\" cubre esta indicacion */}
 
           {/* ── KPI Cards ── */}
           <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
