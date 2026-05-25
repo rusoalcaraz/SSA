@@ -52,7 +52,7 @@ function ModalDG({
   }
 
   return (
-    <Modal titulo={dg ? 'Editar Direccion General' : 'Nueva Direccion General'} onClose={onClose}>
+    <Modal titulo={dg ? 'Editar organismo' : 'Nuevo organismo'} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -132,7 +132,7 @@ export function DireccionesGenerales() {
   useEffect(() => { cargar() }, [cargar])
 
   async function handleDesactivar(dg: DireccionGeneral) {
-    if (!confirm(`¿Desactivar "${dg.nombre}"? Los usuarios DGT de esta DG quedaran sin asignacion.`)) return
+    if (!confirm(`¿Desactivar "${dg.nombre}"? Los usuarios DGT de este organismo quedaran sin asignacion.`)) return
     setDesactivando(dg._id)
     try {
       await catalogosService.desactivarDG(dg._id)
@@ -147,13 +147,13 @@ export function DireccionesGenerales() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Direcciones Generales</h1>
+        <h1 className="text-xl font-bold text-gray-900">Organismos</h1>
         <button
           type="button"
           onClick={() => setModalDG('nueva')}
           className="px-4 py-2 text-sm rounded-md bg-blue-900 text-white hover:bg-blue-800 transition-colors"
         >
-          Nueva DG
+          Nuevo organismo
         </button>
       </div>
 
@@ -170,7 +170,7 @@ export function DireccionesGenerales() {
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           {dgs.length === 0 ? (
-            <p className="py-12 text-center text-sm text-gray-400">Sin direcciones generales registradas.</p>
+            <p className="py-12 text-center text-sm text-gray-400">Sin organismos registrados.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -228,9 +228,9 @@ export function DireccionesGenerales() {
         </div>
       )}
 
-      {(modalDG === 'nueva' || (modalDG && modalDG !== 'nueva')) && (
+      {modalDG !== null && (
         <ModalDG
-          dg={modalDG !== 'nueva' ? (modalDG as DireccionGeneral) : undefined}
+          dg={modalDG === 'nueva' ? undefined : modalDG}
           onGuardado={() => {
             setModalDG(null)
             cargar()

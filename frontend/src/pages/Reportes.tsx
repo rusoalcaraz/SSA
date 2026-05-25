@@ -108,10 +108,10 @@ export function Reportes() {
             </select>
           </div>
 
-          {/* Direccion General */}
+          {/* Organismo */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">
-              Direccion General
+              Organismo
             </label>
             <select
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"

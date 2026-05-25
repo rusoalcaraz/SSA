@@ -95,7 +95,8 @@ export default function App() {
                 element={<ProtectedRoute roles={['superadmin']} />}
               >
                 <Route path="usuarios" element={<Usuarios />} />
-                <Route path="direcciones-generales" element={<DireccionesGenerales />} />
+                <Route path="organismos" element={<DireccionesGenerales />} />
+                <Route path="direcciones-generales" element={<Navigate to="/admin/organismos" replace />} />
               </Route>
 
             </Route>

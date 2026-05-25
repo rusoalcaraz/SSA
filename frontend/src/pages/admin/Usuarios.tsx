@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { Rol, DireccionGeneral } from '../../types'
+import type { Rol, DireccionGeneral, Paginacion as PaginacionTipo } from '../../types'
 import {
   usuariosService,
   type UsuarioCompleto,
@@ -60,7 +60,7 @@ function SelectDG({
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >
-      <option value="">— Sin DG —</option>
+      <option value="">— Sin organismo —</option>
       {dgs.map((dg) => (
         <option key={dg._id} value={dg._id}>
           {dg.siglas} — {dg.nombre}
@@ -185,7 +185,7 @@ function ModalCrearUsuario({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Direccion General{form.rol === 'dgt' && <span className="text-red-500"> *</span>}
+            Organismo{form.rol === 'dgt' && <span className="text-red-500"> *</span>}
           </label>
           <SelectDG
             value={form.direccionGeneral ?? ''}
@@ -296,7 +296,7 @@ function ModalEditarUsuario({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Direccion General{form.rol === 'dgt' && <span className="text-red-500"> *</span>}
+            Organismo{form.rol === 'dgt' && <span className="text-red-500"> *</span>}
           </label>
           <SelectDG
             value={form.direccionGeneral ?? ''}
@@ -421,7 +421,7 @@ export function Usuarios() {
   const [cargando, setCargando] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [pagina, setPagina] = useState(1)
-  const [totalPaginas, setTotalPaginas] = useState(1)
+  const [paginacion, setPaginacion] = useState<PaginacionTipo | null>(null)
 
   const [filtroRol, setFiltroRol] = useState<string>('')
   const [filtroActivo, setFiltroActivo] = useState<string>('')
@@ -444,7 +444,7 @@ export function Usuarios() {
       })
       .then(({ usuarios: u, pagination }) => {
         setUsuarios(u)
-        setTotalPaginas(pagination.totalPaginas)
+        setPaginacion(pagination)
       })
       .catch((err) => setErrorMsg(mensajeDeError(err)))
       .finally(() => setCargando(false))
@@ -550,7 +550,7 @@ export function Usuarios() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {usuarios.map((u) => (
-                    <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={u._id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-medium text-gray-800">
                         {u.nombre} {u.apellidos}
                       </td>
@@ -600,13 +600,7 @@ export function Usuarios() {
               </table>
             )}
           </div>
-          {totalPaginas > 1 && (
-            <Paginacion
-              paginaActual={pagina}
-              totalPaginas={totalPaginas}
-              onChange={setPagina}
-            />
-          )}
+          {paginacion && paginacion.totalPaginas > 1 && <Paginacion paginacion={paginacion} onChange={setPagina} />}
         </>
       )}
 
