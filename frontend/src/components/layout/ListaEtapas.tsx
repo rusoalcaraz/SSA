@@ -22,6 +22,7 @@ type AccionModal =
   | { tipo: 'responder'; etapa: EtapaProcedimiento }
   | { tipo: 'sobreescribir'; etapa: EtapaProcedimiento }
   | { tipo: 'completar'; etapa: EtapaProcedimiento }
+  | { tipo: 'validar'; etapa: EtapaProcedimiento }
   | { tipo: 'observacion'; etapa: EtapaProcedimiento }
   | { tipo: 'historial'; etapa: EtapaProcedimiento }
   | { tipo: 'noAplica'; etapa: EtapaProcedimiento }
@@ -81,8 +82,8 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
     tieneRol('asesor_tecnico') &&
     (procedimiento.asesorTitular?._id === usuario?._id ||
       procedimiento.asesorSuplente?._id === usuario?._id)
-  const esAC = tieneRol('area_contratante', 'superadmin')
-  const esSuperadmin = tieneRol('superadmin')
+  const esIntegrante = tieneRol('integrante_adquisiciones', 'administrador')
+  const esAdministrador = tieneRol('administrador')
 
   if (etapas.length === 0) {
     return <EmptyState mensaje="No hay etapas registradas para este procedimiento." />
@@ -92,13 +93,27 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
     <>
       <div className="space-y-3">
         {etapas.map((etapa, idx) => {
-          const puedeCompletar = (esAT || esSuperadmin) && etapa.estado !== 'completado' && !etapa.noAplica
-          const puedeProponer = esAC && etapa.estado !== 'completado' && !etapa.noAplica
+          const estadosNoCompletables: string[] = ['completado', 'completado_propuesto']
+          const puedeCompletar =
+            (esAT || esAdministrador) &&
+            !estadosNoCompletables.includes(etapa.estado) &&
+            !etapa.noAplica
+          const puedeValidar =
+            (esIntegrante || esAdministrador) &&
+            etapa.estado === 'completado_propuesto'
+          const puedeProponer =
+            esIntegrante &&
+            etapa.estado !== 'completado' &&
+            etapa.estado !== 'completado_propuesto' &&
+            !etapa.noAplica
           const puedeResponder =
-            (esAT || esSuperadmin) && etapa.estado === 'fecha_propuesta'
-          const puedeSobreescribir = esAC && etapa.estado === 'fecha_rechazada'
-          const puedeObservacion = (esAT || tieneRol('dgt') || esSuperadmin) && !etapa.noAplica
-          const puedeNoAplica = esAC && etapa.estado !== 'completado'
+            (esAT || esAdministrador) && etapa.estado === 'fecha_propuesta'
+          const puedeSobreescribir = esIntegrante && etapa.estado === 'fecha_rechazada'
+          const puedeObservacion = (esAT || esIntegrante || esAdministrador) && !etapa.noAplica
+          const puedeNoAplica =
+            esIntegrante &&
+            etapa.estado !== 'completado' &&
+            etapa.estado !== 'completado_propuesto'
 
           return (
             <div
@@ -108,6 +123,8 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                   ? 'border-gray-200 bg-gray-50/60 opacity-60'
                   : etapa.estado === 'completado'
                   ? 'border-green-200 bg-green-50/40'
+                  : etapa.estado === 'completado_propuesto'
+                  ? 'border-purple-200 bg-purple-50/40'
                   : etapa.estado === 'vencido'
                   ? 'border-red-200 bg-red-50/40'
                   : etapa.estado === 'fecha_propuesta'
@@ -184,9 +201,17 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                   {puedeCompletar && (
                     <button
                       onClick={() => abrirModal({ tipo: 'completar', etapa })}
+                      className="px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded transition-colors"
+                    >
+                      Proponer conclusión
+                    </button>
+                  )}
+                  {puedeValidar && (
+                    <button
+                      onClick={() => abrirModal({ tipo: 'validar', etapa })}
                       className="px-2.5 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded transition-colors"
                     >
-                      Completar
+                      Validar
                     </button>
                   )}
                   {puedeProponer && (
@@ -300,11 +325,12 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
 
       {/* ---- Modales ---- */}
 
-      {/* Completar */}
+      {/* Proponer conclusión (AT) */}
       {modal?.tipo === 'completar' && (
-        <Modal titulo="Completar etapa" onClose={cerrarModal}>
+        <Modal titulo="Proponer conclusión de etapa" onClose={cerrarModal}>
           <p className="text-sm text-gray-600 mb-4">
-            Confirma que la etapa <strong>"{modal.etapa.nombre}"</strong> ha sido completada.
+            ¿Confirmas que la etapa <strong>"{modal.etapa.nombre}"</strong> ha sido concluida?
+            El integrante de adquisiciones deberá validar esta acción antes de que se refleje como completada.
           </p>
           {errorModal && <p className="text-sm text-red-600 mb-3">{errorModal}</p>}
           <div className="flex gap-3">
@@ -313,13 +339,52 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                 ejecutar(() => etapasService.completar(procedimiento._id, modal.etapa._id))
               }
               disabled={enviando}
-              className="flex-1 py-2 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-2 bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
             >
               {enviando && <Spinner className="h-4 w-4 text-white" />}
-              Confirmar
+              Proponer
             </button>
             <button onClick={cerrarModal} disabled={enviando} className="flex-1 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
               Cancelar
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Validar conclusión (IA) */}
+      {modal?.tipo === 'validar' && (
+        <Modal titulo="Validar conclusión de etapa" onClose={cerrarModal}>
+          <p className="text-sm text-gray-600 mb-1">
+            El asesor técnico indicó que la etapa{' '}
+            <strong>"{modal.etapa.nombre}"</strong> ha concluido.
+          </p>
+          {modal.etapa.propuestoPor && (
+            <p className="text-xs text-gray-400 mb-4">
+              Propuesto por: {modal.etapa.propuestoPor.nombre} {modal.etapa.propuestoPor.apellidos}
+            </p>
+          )}
+          <p className="text-sm font-medium text-gray-800 mb-3">¿Se concluyó con la actividad?</p>
+          {errorModal && <p className="text-sm text-red-600 mb-3">{errorModal}</p>}
+          <div className="flex gap-3">
+            <button
+              onClick={() =>
+                ejecutar(() => etapasService.validarCompletado(procedimiento._id, modal.etapa._id, 'si'))
+              }
+              disabled={enviando}
+              className="flex-1 py-2 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+            >
+              {enviando && <Spinner className="h-4 w-4 text-white" />}
+              Sí
+            </button>
+            <button
+              onClick={() =>
+                ejecutar(() => etapasService.validarCompletado(procedimiento._id, modal.etapa._id, 'no'))
+              }
+              disabled={enviando}
+              className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+            >
+              {enviando && <Spinner className="h-4 w-4 text-white" />}
+              No
             </button>
           </div>
         </Modal>

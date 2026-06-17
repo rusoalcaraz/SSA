@@ -8,7 +8,12 @@ const ctrl = require('../controllers/reportes.controller');
 const router = Router();
 
 router.use(verifyToken, actualizarActividad, limitarPorUsuario);
-router.use(checkRole(['superadmin', 'gerencial', 'area_contratante']));
+router.use(checkRole([
+  'administrador',
+  'oficialia_mayor',
+  'dir_gral_admon',
+  'integrante_adquisiciones',
+]));
 
 // GET /api/v1/reportes/pdf
 router.get('/pdf', ctrl.pdf);

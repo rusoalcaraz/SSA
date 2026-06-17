@@ -71,7 +71,7 @@ async function actualizar(id: string, payload: ActualizarUsuarioPayload): Promis
   return data.data
 }
 
-async function desactivar(id: string): Promise<void> {
+async function eliminar(id: string): Promise<void> {
   await api.delete(`/usuarios/${id}`)
 }
 
@@ -84,6 +84,6 @@ export const usuariosService = {
   listar,
   crear,
   actualizar,
-  desactivar,
+  eliminar,
   resetPassword,
 }

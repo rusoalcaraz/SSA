@@ -19,19 +19,31 @@ router.use(verifyToken, actualizarActividad, limitarPorUsuario);
 router
   .route('/direcciones-generales')
   .get(
-    checkRole(['superadmin', 'gerencial', 'area_contratante', 'asesor_tecnico', 'dgt']),
+    checkRole([
+      'administrador',
+      'oficialia_mayor',
+      'dir_gral_admon',
+      'integrante_adquisiciones',
+      'asesor_tecnico',
+    ]),
     dgCtrl.listar
   )
-  .post(checkRole(['superadmin']), dgCtrl.crear);
+  .post(checkRole(['administrador']), dgCtrl.crear);
 
 router
   .route('/direcciones-generales/:id')
   .get(
-    checkRole(['superadmin', 'gerencial', 'area_contratante', 'asesor_tecnico', 'dgt']),
+    checkRole([
+      'administrador',
+      'oficialia_mayor',
+      'dir_gral_admon',
+      'integrante_adquisiciones',
+      'asesor_tecnico',
+    ]),
     dgCtrl.obtener
   )
-  .put(checkRole(['superadmin']), dgCtrl.actualizar)
-  .delete(checkRole(['superadmin']), dgCtrl.desactivar);
+  .put(checkRole(['administrador']), dgCtrl.actualizar)
+  .delete(checkRole(['administrador']), dgCtrl.desactivar);
 
 // -------------------------------------------------------
 // Bienes y Servicios — /api/v1/catalogos/bienes-servicios
@@ -39,16 +51,29 @@ router
 router
   .route('/bienes-servicios')
   .get(
-    checkRole(['superadmin', 'area_contratante']),
+    checkRole([
+      'administrador',
+      'oficialia_mayor',
+      'dir_gral_admon',
+      'integrante_adquisiciones',
+    ]),
     bsCtrl.listar
   )
-  .post(checkRole(['superadmin']), bsCtrl.crear);
+  .post(checkRole(['administrador']), bsCtrl.crear);
 
 router
   .route('/bienes-servicios/:id')
-  .get(checkRole(['superadmin', 'area_contratante']), bsCtrl.obtener)
-  .put(checkRole(['superadmin']), bsCtrl.actualizar)
-  .delete(checkRole(['superadmin']), bsCtrl.desactivar);
+  .get(
+    checkRole([
+      'administrador',
+      'oficialia_mayor',
+      'dir_gral_admon',
+      'integrante_adquisiciones',
+    ]),
+    bsCtrl.obtener
+  )
+  .put(checkRole(['administrador']), bsCtrl.actualizar)
+  .delete(checkRole(['administrador']), bsCtrl.desactivar);
 
 // -------------------------------------------------------
 // Etapas — /api/v1/catalogos/etapas
@@ -56,18 +81,30 @@ router
 router
   .route('/etapas')
   .get(
-    checkRole(['superadmin', 'area_contratante', 'asesor_tecnico', 'dgt']),
+    checkRole([
+      'administrador',
+      'oficialia_mayor',
+      'dir_gral_admon',
+      'integrante_adquisiciones',
+      'asesor_tecnico',
+    ]),
     etapasCtrl.listar
   )
-  .post(checkRole(['superadmin']), etapasCtrl.crear);
+  .post(checkRole(['administrador']), etapasCtrl.crear);
 
 router
   .route('/etapas/:id')
   .get(
-    checkRole(['superadmin', 'area_contratante', 'asesor_tecnico', 'dgt']),
+    checkRole([
+      'administrador',
+      'oficialia_mayor',
+      'dir_gral_admon',
+      'integrante_adquisiciones',
+      'asesor_tecnico',
+    ]),
     etapasCtrl.obtener
   )
-  .put(checkRole(['superadmin']), etapasCtrl.actualizar)
-  .delete(checkRole(['superadmin']), etapasCtrl.desactivar);
+  .put(checkRole(['administrador']), etapasCtrl.actualizar)
+  .delete(checkRole(['administrador']), etapasCtrl.desactivar);
 
 module.exports = router;

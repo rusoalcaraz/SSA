@@ -4,7 +4,10 @@ const { Procedimiento } = require('../../models/procedimiento.model');
 const { crearError } = require('../../middleware/errorHandler');
 const { ok } = require('../../utils/respuesta');
 const auditLog = require('../../services/auditLog.service');
-const { esMiProcedimiento } = require('../../services/procedimiento.service');
+const {
+  esMiProcedimiento,
+  perteneceAlMismoOrganismo,
+} = require('../../services/procedimiento.service');
 const { notificarCambioFecha } = require('../../services/notificaciones.service');
 const path = require('path');
 
@@ -66,15 +69,16 @@ function verificarSecuencia(lista, etapa) {
 
 // -------------------------------------------------------
 // PATCH /:id/etapas/:etapaId/completar  — solo AT
+// Propone la conclusion; queda en "completado_propuesto" hasta que IA valide.
 // -------------------------------------------------------
 async function completar(req, res, next) {
   try {
-    const { procedimiento, etapa, lista, seccion } = await resolverSeccion(
+    const { procedimiento, etapa, lista } = await resolverSeccion(
       req.params.id,
       req.params.etapaId
     );
 
-    if (req.usuario.rol !== 'superadmin' && !esMiProcedimiento(procedimiento, req.usuario.id)) {
+    if (req.usuario.rol !== 'administrador' && !esMiProcedimiento(procedimiento, req.usuario.id)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'Solo el asesor tecnico asignado puede completar etapas');
     }
 
@@ -82,36 +86,95 @@ async function completar(req, res, next) {
       throw crearError(409, 'ETAPA_YA_COMPLETADA', 'La etapa ya fue completada');
     }
 
+    if (etapa.estado === 'completado_propuesto') {
+      throw crearError(409, 'ETAPA_PENDIENTE_VALIDACION', 'Ya se propuso la conclusion de esta etapa; espere la validacion del integrante de adquisiciones');
+    }
+
     verificarSecuencia(lista, etapa);
 
-    etapa.estado = 'completado';
-    etapa.fechaReal = new Date();
-    etapa.completadoPor = req.usuario.id;
-    etapa.completadoEn = new Date();
+    etapa.estadoAnteriorPropuesta = etapa.estado;
+    etapa.estado = 'completado_propuesto';
+    etapa.propuestoPor = req.usuario.id;
+    etapa.propuestoEn = new Date();
 
     await procedimiento.save();
 
-    // Si se completó la última etapa del cronograma, avanzar a hoja de trabajo
-    if (seccion === 'cronograma' && procedimiento.etapaActual === 'cronograma') {
-      const todasTerminadas = procedimiento.cronograma.every(
-        (e) => e.estado === 'completado' || e.noAplica
-      );
-      if (todasTerminadas) {
-        procedimiento.etapaActual = 'hoja_de_trabajo';
-        await procedimiento.save();
-      }
-    }
-
     await auditLog.registrar({
       usuarioId: req.usuario.id,
-      accion: 'COMPLETAR_ETAPA',
+      accion: 'PROPONER_COMPLETAR_ETAPA',
       recurso: 'etapa',
       recursoId: etapa._id,
       detalle: { procedimientoId: procedimiento._id, nombreEtapa: etapa.nombre },
       req,
     });
 
-    return ok(res, etapa, `Etapa "${etapa.nombre}" completada`);
+    return ok(res, etapa, `Se propuso la conclusion de "${etapa.nombre}". Pendiente de validacion.`);
+  } catch (error) {
+    next(error);
+  }
+}
+
+// -------------------------------------------------------
+// PATCH /:id/etapas/:etapaId/validar-completado  — solo IA / admin
+// Confirma o rechaza la propuesta de conclusion del AT.
+// -------------------------------------------------------
+async function validarCompletado(req, res, next) {
+  try {
+    const { respuesta } = req.body;
+    if (!['si', 'no'].includes(respuesta)) {
+      throw crearError(400, 'RESPUESTA_INVALIDA', 'La respuesta debe ser "si" o "no"');
+    }
+
+    const { procedimiento, etapa, seccion } = await resolverSeccion(
+      req.params.id,
+      req.params.etapaId
+    );
+
+    if (etapa.estado !== 'completado_propuesto') {
+      throw crearError(409, 'SIN_PROPUESTA_PENDIENTE', 'Esta etapa no tiene una propuesta de conclusion pendiente');
+    }
+
+    if (respuesta === 'si') {
+      etapa.estado = 'completado';
+      etapa.fechaReal = new Date();
+      etapa.completadoPor = etapa.propuestoPor;
+      etapa.completadoEn = new Date();
+    } else {
+      etapa.estado = etapa.estadoAnteriorPropuesta || 'activo';
+    }
+
+    etapa.propuestoPor = undefined;
+    etapa.propuestoEn = undefined;
+    etapa.estadoAnteriorPropuesta = undefined;
+
+    await procedimiento.save();
+
+    if (respuesta === 'si') {
+      if (seccion === 'cronograma' && procedimiento.etapaActual === 'cronograma') {
+        const todasTerminadas = procedimiento.cronograma.every(
+          (e) => e.estado === 'completado' || e.noAplica
+        );
+        if (todasTerminadas) {
+          procedimiento.etapaActual = 'hoja_de_trabajo';
+          await procedimiento.save();
+        }
+      }
+    }
+
+    await auditLog.registrar({
+      usuarioId: req.usuario.id,
+      accion: respuesta === 'si' ? 'VALIDAR_ETAPA_SI' : 'VALIDAR_ETAPA_NO',
+      recurso: 'etapa',
+      recursoId: etapa._id,
+      detalle: { procedimientoId: procedimiento._id, nombreEtapa: etapa.nombre },
+      req,
+    });
+
+    const mensaje = respuesta === 'si'
+      ? `Etapa "${etapa.nombre}" validada y marcada como completada`
+      : `Propuesta de conclusion de "${etapa.nombre}" rechazada`;
+
+    return ok(res, etapa, mensaje);
   } catch (error) {
     next(error);
   }
@@ -185,7 +248,7 @@ async function responderFecha(req, res, next) {
 
     const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
 
-    if (req.usuario.rol !== 'superadmin' && !esMiProcedimiento(procedimiento, req.usuario.id)) {
+    if (req.usuario.rol !== 'administrador' && !esMiProcedimiento(procedimiento, req.usuario.id)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'Solo el asesor tecnico asignado puede responder cambios de fecha');
     }
 
@@ -295,13 +358,12 @@ async function agregarObservacion(req, res, next) {
 
     const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
 
-    // Verificar acceso segun rol
     const { rol, id: usuarioId, dgId } = req.usuario;
     if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
     }
-    if (rol === 'dgt' && !procedimiento.direccionGeneral.equals(dgId)) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otra Direccion General');
+    if (rol === 'integrante_adquisiciones' && !perteneceAlMismoOrganismo(procedimiento, dgId)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otro organismo');
     }
 
     const archivos = req.files
@@ -338,8 +400,8 @@ async function subirArchivo(req, res, next) {
     if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
     }
-    if (rol === 'dgt' && !procedimiento.direccionGeneral.equals(dgId)) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otra Direccion General');
+    if (rol === 'integrante_adquisiciones' && !perteneceAlMismoOrganismo(procedimiento, dgId)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otro organismo');
     }
 
     // Agregar como observacion con solo archivo adjunto
@@ -421,6 +483,7 @@ async function marcarNoAplica(req, res, next) {
 
 module.exports = {
   completar,
+  validarCompletado,
   proponerFecha,
   responderFecha,
   sobreescribirFecha,

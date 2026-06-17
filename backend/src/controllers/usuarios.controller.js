@@ -1,15 +1,47 @@
 'use strict';
 
-const { Usuario, ROLES } = require('../models/usuario.model');
+const { Usuario, ROLES, ROLES_CON_ORGANISMO } = require('../models/usuario.model');
 const { Procedimiento } = require('../models/procedimiento.model');
 const { DireccionGeneral } = require('../models/direccionGeneral.model');
 const { crearError } = require('../middleware/errorHandler');
 const { ok, creado } = require('../utils/respuesta');
 const auditLog = require('../services/auditLog.service');
 
+const ROLES_CONSULTA_GLOBAL = ['administrador', 'oficialia_mayor', 'dir_gral_admon'];
+
 // Escapa caracteres especiales de regex para prevenir ReDoS e inyeccion
 function escaparRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function obtenerId(valor) {
+  if (!valor) return null;
+  if (typeof valor === 'string') return valor;
+  if (typeof valor === 'object' && valor._id) return String(valor._id);
+  return String(valor);
+}
+
+function esIntegrante(usuario) {
+  return usuario?.rol === 'integrante_adquisiciones';
+}
+
+function esConsultaGlobal(usuario) {
+  return ROLES_CONSULTA_GLOBAL.includes(usuario?.rol);
+}
+
+function validarOrganismoSolicitante(usuario) {
+  if (!usuario?.dgId) {
+    throw crearError(400, 'ORGANISMO_NO_ASIGNADO', 'El usuario autenticado no tiene organismo asignado');
+  }
+  return String(usuario.dgId);
+}
+
+function mismoOrganismo(usuario, organismoId) {
+  return Boolean(obtenerId(usuario?.direccionGeneral) && obtenerId(usuario.direccionGeneral) === String(organismoId));
+}
+
+function puedeGestionarUsuarioComoIntegrante(usuarioObjetivo, organismoId) {
+  return usuarioObjetivo.rol === 'asesor_tecnico' && mismoOrganismo(usuarioObjetivo, organismoId);
 }
 
 // -------------------------------------------------------
@@ -25,7 +57,15 @@ async function listar(req, res, next) {
       filtro.rol = rol;
     }
     if (activo !== undefined) filtro.activo = activo === 'true';
-    if (dgId) filtro.direccionGeneral = dgId;
+    if (esIntegrante(req.usuario)) {
+      const organismoId = validarOrganismoSolicitante(req.usuario);
+      if (dgId && String(dgId) !== organismoId) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede consultar usuarios de su propio organismo');
+      }
+      filtro.direccionGeneral = organismoId;
+    } else if (dgId) {
+      filtro.direccionGeneral = dgId;
+    }
     if (q) {
       const qEscapado = escaparRegex(String(q).slice(0, 100)); // limitar longitud
       filtro.$or = [
@@ -67,6 +107,12 @@ async function obtener(req, res, next) {
     const usuario = await Usuario.findById(req.params.id)
       .populate('direccionGeneral', 'nombre siglas');
     if (!usuario) throw crearError(404, 'USUARIO_NO_ENCONTRADO', 'Usuario no encontrado');
+    if (esIntegrante(req.usuario)) {
+      const organismoId = validarOrganismoSolicitante(req.usuario);
+      if (!mismoOrganismo(usuario, organismoId)) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede consultar usuarios de su propio organismo');
+      }
+    }
     return ok(res, usuario);
   } catch (error) {
     next(error);
@@ -89,13 +135,35 @@ async function crear(req, res, next) {
     if (contrasena.length < 8) {
       throw crearError(400, 'CONTRASENA_CORTA', 'La contrasena debe tener al menos 8 caracteres');
     }
-    if (rol === 'dgt' && !direccionGeneral) {
-      throw crearError(400, 'DG_REQUERIDA', 'La Direccion General es obligatoria para el rol dgt');
+
+    const solicitanteEsIntegrante = esIntegrante(req.usuario);
+    if (solicitanteEsIntegrante && rol !== 'asesor_tecnico') {
+      throw crearError(
+        403,
+        'ACCESO_DENEGADO',
+        'Integrante de adquisiciones solo puede crear usuarios con rol asesor_tecnico'
+      );
     }
 
-    // Verificar que la DG existe si se proporciona
-    if (direccionGeneral) {
-      const dgExiste = await DireccionGeneral.exists({ _id: direccionGeneral, activa: true });
+    const organismoId = solicitanteEsIntegrante
+      ? validarOrganismoSolicitante(req.usuario)
+      : (direccionGeneral || null);
+
+    if (
+      solicitanteEsIntegrante &&
+      direccionGeneral &&
+      String(direccionGeneral) !== organismoId
+    ) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede crear usuarios en su propio organismo');
+    }
+
+    if (ROLES_CON_ORGANISMO.includes(rol) && !organismoId) {
+      throw crearError(400, 'DG_REQUERIDA', `El organismo es obligatorio para el rol ${rol}`);
+    }
+
+    // Verificar que el organismo existe si se proporciona
+    if (organismoId) {
+      const dgExiste = await DireccionGeneral.exists({ _id: organismoId, activa: true });
       if (!dgExiste) throw crearError(404, 'DG_NO_ENCONTRADA', 'Direccion General no encontrada o inactiva');
     }
 
@@ -106,7 +174,7 @@ async function crear(req, res, next) {
       correo,
       passwordHash: contrasena,
       rol,
-      direccionGeneral: direccionGeneral || null,
+      direccionGeneral: organismoId,
     });
 
     await auditLog.registrar({
@@ -138,26 +206,66 @@ async function actualizar(req, res, next) {
     const usuario = await Usuario.findById(req.params.id);
     if (!usuario) throw crearError(404, 'USUARIO_NO_ENCONTRADO', 'Usuario no encontrado');
 
-    // Impedir que el superadmin se quite su propio rol
-    if (rol && usuario._id.equals(req.usuario.id) && rol !== 'superadmin') {
-      throw crearError(409, 'OPERACION_NO_PERMITIDA', 'No puede cambiar su propio rol de superadmin');
+    const solicitanteEsIntegrante = esIntegrante(req.usuario);
+    const organismoSolicitante = solicitanteEsIntegrante
+      ? validarOrganismoSolicitante(req.usuario)
+      : null;
+
+    if (
+      solicitanteEsIntegrante &&
+      !puedeGestionarUsuarioComoIntegrante(usuario, organismoSolicitante)
+    ) {
+      throw crearError(
+        403,
+        'ACCESO_DENEGADO',
+        'Solo puede modificar asesores tecnicos de su propio organismo'
+      );
+    }
+
+    // Impedir que el administrador se quite su propio rol
+    if (rol && usuario._id.equals(req.usuario.id) && rol !== 'administrador') {
+      throw crearError(409, 'OPERACION_NO_PERMITIDA', 'No puede cambiar su propio rol de administrador');
     }
 
     if (rol) {
       if (!ROLES.includes(rol)) throw crearError(400, 'ROL_INVALIDO', `Rol no valido: ${rol}`);
+      if (solicitanteEsIntegrante && rol !== 'asesor_tecnico') {
+        throw crearError(
+          403,
+          'ACCESO_DENEGADO',
+          'Solo puede mantener el rol asesor_tecnico en usuarios de su organismo'
+        );
+      }
       usuario.rol = rol;
     }
 
-    // Validar DG si el nuevo rol es dgt
     const rolFinal = rol || usuario.rol;
-    if (rolFinal === 'dgt') {
-      const dgFinal = direccionGeneral !== undefined ? direccionGeneral : usuario.direccionGeneral;
-      if (!dgFinal) throw crearError(400, 'DG_REQUERIDA', 'La Direccion General es obligatoria para el rol dgt');
+    let organismoFinal = direccionGeneral !== undefined ? (direccionGeneral || null) : usuario.direccionGeneral;
+
+    if (solicitanteEsIntegrante) {
+      if (
+        direccionGeneral !== undefined &&
+        obtenerId(direccionGeneral) !== organismoSolicitante
+      ) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede mantener usuarios dentro de su organismo');
+      }
+      organismoFinal = organismoSolicitante;
+    }
+
+    if (ROLES_CON_ORGANISMO.includes(rolFinal) && !organismoFinal) {
+      throw crearError(400, 'DG_REQUERIDA', `El organismo es obligatorio para el rol ${rolFinal}`);
+    }
+
+    if (organismoFinal) {
+      const dgExiste = await DireccionGeneral.exists({ _id: organismoFinal, activa: true });
+      if (!dgExiste) throw crearError(404, 'DG_NO_ENCONTRADA', 'Direccion General no encontrada o inactiva');
     }
 
     if (nombre !== undefined) usuario.nombre = nombre;
     if (apellidos !== undefined) usuario.apellidos = apellidos;
-    if (direccionGeneral !== undefined) usuario.direccionGeneral = direccionGeneral || null;
+    if (direccionGeneral !== undefined || solicitanteEsIntegrante) {
+      usuario.direccionGeneral = organismoFinal;
+    }
     if (activo !== undefined) usuario.activo = activo;
 
     // Si se desactiva el usuario, invalidar todos sus refresh tokens
@@ -197,6 +305,17 @@ async function desactivar(req, res, next) {
     if (!usuario) throw crearError(404, 'USUARIO_NO_ENCONTRADO', 'Usuario no encontrado');
     if (!usuario.activo) throw crearError(409, 'USUARIO_YA_INACTIVO', 'El usuario ya esta inactivo');
 
+    if (esIntegrante(req.usuario)) {
+      const organismoId = validarOrganismoSolicitante(req.usuario);
+      if (!puedeGestionarUsuarioComoIntegrante(usuario, organismoId)) {
+        throw crearError(
+          403,
+          'ACCESO_DENEGADO',
+          'Solo puede desactivar asesores tecnicos de su propio organismo'
+        );
+      }
+    }
+
     usuario.activo = false;
     usuario.refreshTokens = [];
     await usuario.save();
@@ -216,6 +335,51 @@ async function desactivar(req, res, next) {
 }
 
 // -------------------------------------------------------
+// DELETE /api/v1/usuarios/:id  — borrado definitivo
+// -------------------------------------------------------
+async function eliminarDefinitivo(req, res, next) {
+  try {
+    const usuarioObjetivo = await Usuario.findById(req.params.id).select('+refreshTokens');
+    if (!usuarioObjetivo) throw crearError(404, 'USUARIO_NO_ENCONTRADO', 'Usuario no encontrado');
+
+    if (esIntegrante(req.usuario)) {
+      const organismoId = validarOrganismoSolicitante(req.usuario);
+      if (!puedeGestionarUsuarioComoIntegrante(usuarioObjetivo, organismoId)) {
+        throw crearError(
+          403,
+          'ACCESO_DENEGADO',
+          'Solo puede borrar asesores tecnicos de su propio organismo'
+        );
+      }
+    }
+
+    await Procedimiento.updateMany(
+      { asesorTitular: usuarioObjetivo._id },
+      { $set: { asesorTitular: null } }
+    );
+    await Procedimiento.updateMany(
+      { asesorSuplente: usuarioObjetivo._id },
+      { $set: { asesorSuplente: null } }
+    );
+
+    await Usuario.deleteOne({ _id: usuarioObjetivo._id });
+
+    await auditLog.registrar({
+      usuarioId: req.usuario.id,
+      accion: 'BORRAR_USUARIO',
+      recurso: 'usuario',
+      recursoId: usuarioObjetivo._id,
+      detalle: { rolBorrado: usuarioObjetivo.rol, correo: usuarioObjetivo.correo },
+      req,
+    });
+
+    return ok(res, { eliminado: true }, 'Usuario borrado definitivamente');
+  } catch (error) {
+    next(error);
+  }
+}
+
+// -------------------------------------------------------
 // PUT /api/v1/usuarios/:id/reset-password
 // Solo superadmin puede resetear la contrasena de otro usuario.
 // -------------------------------------------------------
@@ -228,6 +392,17 @@ async function resetPassword(req, res, next) {
 
     const usuario = await Usuario.findById(req.params.id).select('+passwordHash +refreshTokens');
     if (!usuario) throw crearError(404, 'USUARIO_NO_ENCONTRADO', 'Usuario no encontrado');
+
+    if (esIntegrante(req.usuario)) {
+      const organismoId = validarOrganismoSolicitante(req.usuario);
+      if (!puedeGestionarUsuarioComoIntegrante(usuario, organismoId)) {
+        throw crearError(
+          403,
+          'ACCESO_DENEGADO',
+          'Solo puede resetear contrasenas de asesores tecnicos de su propio organismo'
+        );
+      }
+    }
 
     usuario.passwordHash = contrasenaNueva; // el pre-save lo hashea
     usuario.refreshTokens = [];             // fuerza re-login
@@ -253,8 +428,15 @@ async function resetPassword(req, res, next) {
 // -------------------------------------------------------
 async function listarProcedimientosAsignados(req, res, next) {
   try {
-    const usuario = await Usuario.findById(req.params.id).select('rol nombre apellidos');
+    const usuario = await Usuario.findById(req.params.id).select('rol nombre apellidos direccionGeneral');
     if (!usuario) throw crearError(404, 'USUARIO_NO_ENCONTRADO', 'Usuario no encontrado');
+
+    if (esIntegrante(req.usuario)) {
+      const organismoId = validarOrganismoSolicitante(req.usuario);
+      if (!mismoOrganismo(usuario, organismoId)) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede consultar usuarios de su propio organismo');
+      }
+    }
 
     if (usuario.rol !== 'asesor_tecnico') {
       throw crearError(400, 'ROL_INCOMPATIBLE', 'Esta operacion solo aplica a usuarios con rol asesor_tecnico');
@@ -282,6 +464,7 @@ module.exports = {
   crear,
   actualizar,
   desactivar,
+  eliminarDefinitivo,
   resetPassword,
   listarProcedimientosAsignados,
 };

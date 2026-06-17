@@ -8,21 +8,33 @@ const ctrl = require('../controllers/usuarios.controller');
 const router = Router();
 
 router.use(verifyToken, actualizarActividad, limitarPorUsuario);
-router.use(checkRole(['superadmin']));
 
 // GET  /api/v1/usuarios             — listar con filtros
 // POST /api/v1/usuarios             — crear usuario
-router.route('/').get(ctrl.listar).post(ctrl.crear);
+router.route('/')
+  .get(checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones']), ctrl.listar)
+  .post(checkRole(['administrador', 'integrante_adquisiciones']), ctrl.crear);
 
 // GET    /api/v1/usuarios/:id       — detalle
 // PUT    /api/v1/usuarios/:id       — actualizar datos / rol / DG / activo
 // DELETE /api/v1/usuarios/:id       — baja logica
-router.route('/:id').get(ctrl.obtener).put(ctrl.actualizar).delete(ctrl.desactivar);
+router.route('/:id')
+  .get(checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones']), ctrl.obtener)
+  .put(checkRole(['administrador', 'integrante_adquisiciones']), ctrl.actualizar)
+  .delete(checkRole(['administrador', 'integrante_adquisiciones']), ctrl.eliminarDefinitivo);
 
 // PUT /api/v1/usuarios/:id/reset-password
-router.put('/:id/reset-password', ctrl.resetPassword);
+router.put(
+  '/:id/reset-password',
+  checkRole(['administrador', 'integrante_adquisiciones']),
+  ctrl.resetPassword
+);
 
 // GET /api/v1/usuarios/:id/procedimientos
-router.get('/:id/procedimientos', ctrl.listarProcedimientosAsignados);
+router.get(
+  '/:id/procedimientos',
+  checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones']),
+  ctrl.listarProcedimientosAsignados
+);
 
 module.exports = router;

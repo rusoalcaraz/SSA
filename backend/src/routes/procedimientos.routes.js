@@ -9,6 +9,9 @@ const procCtrl = require('../controllers/procedimientos/procedimientos.controlle
 const etapasCtrl = require('../controllers/procedimientos/etapas.controller');
 const entregasCtrl = require('../controllers/procedimientos/entregas.controller');
 
+// Destructure para acceder a las nuevas funciones
+const { proponerRecibida, validarEntrega } = entregasCtrl;
+
 const router = Router();
 
 // Todos los endpoints requieren autenticacion
@@ -20,56 +23,68 @@ router.use(verifyToken, actualizarActividad, limitarPorUsuario);
 router
   .route('/')
   .get(
-    checkRole(['superadmin', 'gerencial', 'area_contratante', 'asesor_tecnico', 'dgt']),
+    checkRole([
+      'administrador',
+      'oficialia_mayor',
+      'dir_gral_admon',
+      'integrante_adquisiciones',
+      'asesor_tecnico',
+    ]),
     procCtrl.listar
   )
   .post(
-    checkRole(['superadmin', 'area_contratante']),
+    checkRole(['administrador', 'integrante_adquisiciones']),
     procCtrl.crear
   );
 
 router
   .route('/:id')
   .get(
-    checkRole(['superadmin', 'gerencial', 'area_contratante', 'asesor_tecnico', 'dgt']),
+    checkRole([
+      'administrador',
+      'oficialia_mayor',
+      'dir_gral_admon',
+      'integrante_adquisiciones',
+      'asesor_tecnico',
+    ]),
     procCtrl.obtener
   )
   .put(
-    checkRole(['superadmin', 'area_contratante']),
+    checkRole(['administrador', 'integrante_adquisiciones']),
     procCtrl.actualizar
   );
 
 router.patch(
   '/:id/urgente',
-  checkRole(['superadmin', 'area_contratante']),
+  checkRole(['administrador', 'integrante_adquisiciones']),
   procCtrl.marcarUrgente
 );
 
 // Texto de justificacion + supuesto de excepcion
 router.put(
   '/:id/justificacion',
-  checkRole(['superadmin', 'area_contratante']),
+  checkRole(['administrador', 'integrante_adquisiciones']),
   procCtrl.actualizarJustificacion
 );
 
 // Informacion de cabecera del cronograma
 router.put(
   '/:id/cronograma-info',
-  checkRole(['superadmin', 'area_contratante', 'asesor_tecnico']),
+  checkRole(['administrador', 'integrante_adquisiciones', 'asesor_tecnico']),
   procCtrl.actualizarInfoCronograma
 );
 
 // Informacion de cabecera de la hoja de trabajo
 router.put(
   '/:id/hoja-trabajo-info',
-  checkRole(['superadmin', 'area_contratante', 'asesor_tecnico']),
+  checkRole(['administrador', 'integrante_adquisiciones', 'asesor_tecnico']),
   procCtrl.actualizarInfoHojaDeTrabajo
 );
 
 // Archivo de evidencia de justificacion
 router.post(
   '/:id/justificacion/archivo',
-  checkRole(['superadmin', 'area_contratante']),
+  checkRole(['administrador', 'integrante_adquisiciones']),
   uploadJustificacion.single('archivo'),
   async (req, res, next) => {
     try {
@@ -79,10 +94,15 @@ router.post(
       }
       const { Procedimiento } = require('../models/procedimiento.model');
       const { ok } = require('../utils/respuesta');
+      const { puedeGestionarProcedimiento } = require('../services/procedimiento.service');
       const proc = await Procedimiento.findById(req.params.id);
       if (!proc) {
         const { crearError } = require('../middleware/errorHandler');
         throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+      }
+      if (!puedeGestionarProcedimiento(proc, req.usuario)) {
+        const { crearError } = require('../middleware/errorHandler');
+        throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
       }
       proc.evidenciaJustificacion.push({
         nombre: req.file.originalname,
@@ -102,44 +122,50 @@ router.post(
 // -------------------------------------------------------
 router.patch(
   '/:id/etapas/:etapaId/completar',
-  checkRole(['superadmin', 'asesor_tecnico']),
+  checkRole(['administrador', 'asesor_tecnico']),
   etapasCtrl.completar
 );
 
 router.patch(
+  '/:id/etapas/:etapaId/validar-completado',
+  checkRole(['administrador', 'integrante_adquisiciones']),
+  etapasCtrl.validarCompletado
+);
+
+router.patch(
   '/:id/etapas/:etapaId/proponer-fecha',
-  checkRole(['superadmin', 'area_contratante']),
+  checkRole(['administrador', 'integrante_adquisiciones']),
   etapasCtrl.proponerFecha
 );
 
 router.patch(
   '/:id/etapas/:etapaId/responder-fecha',
-  checkRole(['superadmin', 'asesor_tecnico']),
+  checkRole(['administrador', 'asesor_tecnico']),
   etapasCtrl.responderFecha
 );
 
 router.patch(
   '/:id/etapas/:etapaId/sobreescribir-fecha',
-  checkRole(['superadmin', 'area_contratante']),
+  checkRole(['administrador', 'integrante_adquisiciones']),
   etapasCtrl.sobreescribirFecha
 );
 
 router.patch(
   '/:id/etapas/:etapaId/no-aplica',
-  checkRole(['superadmin', 'area_contratante']),
+  checkRole(['administrador', 'integrante_adquisiciones']),
   etapasCtrl.marcarNoAplica
 );
 
 router.post(
   '/:id/etapas/:etapaId/observacion',
-  checkRole(['superadmin', 'asesor_tecnico', 'dgt']),
+  checkRole(['administrador', 'asesor_tecnico', 'integrante_adquisiciones']),
   uploadObservacion.array('archivos', 5),
   etapasCtrl.agregarObservacion
 );
 
 router.post(
   '/:id/etapas/:etapaId/archivo',
-  checkRole(['superadmin', 'asesor_tecnico', 'dgt']),
+  checkRole(['administrador', 'asesor_tecnico', 'integrante_adquisiciones']),
   uploadObservacion.single('archivo'),
   etapasCtrl.subirArchivo
 );
@@ -150,23 +176,41 @@ router.post(
 router
   .route('/:id/entregas')
   .get(
-    checkRole(['superadmin', 'gerencial', 'area_contratante', 'asesor_tecnico', 'dgt', 'inspeccion']),
+    checkRole([
+      'administrador',
+      'oficialia_mayor',
+      'dir_gral_admon',
+      'integrante_adquisiciones',
+      'asesor_tecnico',
+    ]),
     entregasCtrl.listar
   )
   .post(
-    checkRole(['superadmin', 'area_contratante']),
+    checkRole(['administrador', 'integrante_adquisiciones']),
     entregasCtrl.crear
   );
 
 router.put(
   '/:id/entregas/:entregaId',
-  checkRole(['superadmin', 'area_contratante']),
+  checkRole(['administrador', 'integrante_adquisiciones']),
   entregasCtrl.actualizar
+);
+
+router.patch(
+  '/:id/entregas/:entregaId/proponer-recibida',
+  checkRole(['administrador', 'asesor_tecnico']),
+  entregasCtrl.proponerRecibida
+);
+
+router.patch(
+  '/:id/entregas/:entregaId/validar',
+  checkRole(['administrador', 'integrante_adquisiciones']),
+  entregasCtrl.validarEntrega
 );
 
 router.post(
   '/:id/entregas/:entregaId/documento',
-  checkRole(['superadmin', 'inspeccion']),
+  checkRole(['administrador', 'integrante_adquisiciones']),
   uploadEntrega.single('archivo'),
   entregasCtrl.subirDocumento
 );

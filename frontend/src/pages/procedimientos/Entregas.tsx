@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import type { Procedimiento, Entrega } from '../../types'
 import { useAuth } from '../../hooks/useAuth'
 import { Modal } from '../../components/ui/Modal'
+import { Spinner } from '../../components/ui/Spinner'
 import { entregasService, type CrearEntregaPayload, type ActualizarEntregaPayload } from '../../services/entregas.service'
 import { mensajeDeError } from '../../services/api'
 import { formatearFecha } from '../../utils/formato'
@@ -19,12 +20,14 @@ const ESTADO_ETIQUETA: Record<Entrega['estado'], string> = {
   pendiente: 'Pendiente',
   recibida: 'Recibida',
   rechazada: 'Rechazada',
+  recibida_propuesta: 'Pend. validación',
 }
 
 const ESTADO_CLASE: Record<Entrega['estado'], string> = {
   pendiente: 'bg-gray-100 text-gray-600',
   recibida: 'bg-green-100 text-green-700',
   rechazada: 'bg-red-100 text-red-700',
+  recibida_propuesta: 'bg-purple-100 text-purple-800',
 }
 
 const TIPO_ETIQUETA: Record<Entrega['tipo'], string> = {
@@ -377,6 +380,73 @@ function ModalSubirDocumento({
 }
 
 // -------------------------------------------------------
+// Modal de validación IA
+// -------------------------------------------------------
+function ModalValidarEntrega({
+  procedimientoId,
+  entrega,
+  onGuardado,
+  onClose,
+}: {
+  procedimientoId: string
+  entrega: Entrega
+  onGuardado: () => void
+  onClose: () => void
+}) {
+  const [validando, setValidando] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  async function responder(respuesta: 'si' | 'no') {
+    setValidando(true)
+    setErrorMsg(null)
+    try {
+      await entregasService.validarEntrega(procedimientoId, entrega._id, respuesta)
+      onGuardado()
+    } catch (err) {
+      setErrorMsg(mensajeDeError(err))
+    } finally {
+      setValidando(false)
+    }
+  }
+
+  return (
+    <Modal titulo="Validar entrega" onClose={onClose}>
+      <p className="text-sm text-gray-600 mb-1">
+        El asesor técnico indicó que la entrega{' '}
+        <strong className="text-gray-800">"{entrega.descripcion}"</strong> fue recibida.
+      </p>
+      {entrega.propuestoPor && (
+        <p className="text-xs text-gray-400 mb-4">
+          Propuesto por: {entrega.propuestoPor.nombre} {entrega.propuestoPor.apellidos}
+        </p>
+      )}
+      <p className="text-sm font-medium text-gray-800 mb-3">¿Se concluyó con la actividad?</p>
+      {errorMsg && <p className="text-sm text-red-600 mb-3">{errorMsg}</p>}
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={() => responder('si')}
+          disabled={validando}
+          className="flex-1 py-2 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+        >
+          {validando && <Spinner className="h-4 w-4 text-white" />}
+          Sí
+        </button>
+        <button
+          type="button"
+          onClick={() => responder('no')}
+          disabled={validando}
+          className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+        >
+          {validando && <Spinner className="h-4 w-4 text-white" />}
+          No
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+// -------------------------------------------------------
 // Fila de entrega expandible
 // -------------------------------------------------------
 function FilaEntrega({
@@ -384,17 +454,37 @@ function FilaEntrega({
   procedimientoId,
   puedeEditar,
   puedeSubirDoc,
+  puedeProponer,
+  puedeValidar,
   onActualizar,
 }: {
   entrega: Entrega
   procedimientoId: string
   puedeEditar: boolean
   puedeSubirDoc: boolean
+  puedeProponer: boolean
+  puedeValidar: boolean
   onActualizar: () => void
 }) {
   const [expandida, setExpandida] = useState(false)
   const [modalEditar, setModalEditar] = useState(false)
   const [modalDocumento, setModalDocumento] = useState<string | null>(null)
+  const [modalValidar, setModalValidar] = useState(false)
+  const [proponiendo, setProponiendo] = useState(false)
+  const [errorPropuesta, setErrorPropuesta] = useState<string | null>(null)
+
+  async function handleProponerRecibida() {
+    setProponiendo(true)
+    setErrorPropuesta(null)
+    try {
+      await entregasService.proponerRecibida(procedimientoId, entrega._id)
+      onActualizar()
+    } catch (err) {
+      setErrorPropuesta(mensajeDeError(err))
+    } finally {
+      setProponiendo(false)
+    }
+  }
 
   return (
     <>
@@ -461,8 +551,32 @@ function FilaEntrega({
               )}
             </div>
 
+            {errorPropuesta && (
+              <p className="text-xs text-red-600">{errorPropuesta}</p>
+            )}
+
             {/* Acciones */}
-            <div className="flex gap-2 pt-1">
+            <div className="flex gap-2 pt-1 flex-wrap">
+              {puedeProponer && entrega.estado === 'pendiente' && (
+                <button
+                  type="button"
+                  onClick={handleProponerRecibida}
+                  disabled={proponiendo}
+                  className="px-3 py-1.5 text-xs rounded border border-purple-200 text-purple-800 hover:bg-purple-50 transition-colors flex items-center gap-1.5"
+                >
+                  {proponiendo && <Spinner className="h-3 w-3 text-purple-700" />}
+                  Proponer recibida
+                </button>
+              )}
+              {puedeValidar && entrega.estado === 'recibida_propuesta' && (
+                <button
+                  type="button"
+                  onClick={() => setModalValidar(true)}
+                  className="px-3 py-1.5 text-xs rounded border border-green-200 text-green-800 hover:bg-green-50 transition-colors"
+                >
+                  Validar
+                </button>
+              )}
               {puedeEditar && (
                 <button
                   type="button"
@@ -508,6 +622,17 @@ function FilaEntrega({
           onClose={() => setModalDocumento(null)}
         />
       )}
+      {modalValidar && (
+        <ModalValidarEntrega
+          procedimientoId={procedimientoId}
+          entrega={entrega}
+          onGuardado={() => {
+            setModalValidar(false)
+            onActualizar()
+          }}
+          onClose={() => setModalValidar(false)}
+        />
+      )}
     </>
   )
 }
@@ -517,11 +642,18 @@ function FilaEntrega({
 // -------------------------------------------------------
 export function Entregas() {
   const { procedimiento, recargar } = useOutletContext<ContextoDetalle>()
-  const { tieneRol } = useAuth()
+  const { tieneRol, usuario } = useAuth()
   const [modalCrear, setModalCrear] = useState(false)
 
-  const puedeEditar = tieneRol('superadmin', 'area_contratante')
-  const puedeSubirDoc = tieneRol('superadmin', 'inspeccion')
+  const puedeEditar = tieneRol('administrador', 'integrante_adquisiciones')
+  const puedeSubirDoc = puedeEditar
+  const puedeValidar = tieneRol('administrador', 'integrante_adquisiciones')
+
+  const esAT =
+    tieneRol('asesor_tecnico') &&
+    (procedimiento.asesorTitular?._id === usuario?._id ||
+      procedimiento.asesorSuplente?._id === usuario?._id)
+  const puedeProponer = esAT || tieneRol('administrador')
 
   const entregas = procedimiento.entregas
 
@@ -557,6 +689,8 @@ export function Entregas() {
               procedimientoId={procedimiento._id}
               puedeEditar={puedeEditar}
               puedeSubirDoc={puedeSubirDoc}
+              puedeProponer={puedeProponer}
+              puedeValidar={puedeValidar}
               onActualizar={recargar}
             />
           ))}

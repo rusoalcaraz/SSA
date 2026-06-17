@@ -62,7 +62,7 @@ export function ListaProcedimientos() {
     setFiltros({ page: 1, limit: 20 })
   }
 
-  const puedeCrear = tieneRol('superadmin', 'area_contratante')
+  const puedeCrear = tieneRol('administrador', 'integrante_adquisiciones')
 
   return (
     <div>
@@ -247,18 +247,28 @@ export function ListaProcedimientos() {
                   <td className="px-4 py-3 text-gray-700">
                     {proc.asesorTitular
                       ? `${proc.asesorTitular.nombre} ${proc.asesorTitular.apellidos}`
-                      : '—'}
+                      : 'pendiente por designar'}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge etapa={proc.etapaActual}>
-                      {ETIQUETA_ETAPA[proc.etapaActual]}
-                    </Badge>
-                    {proc.etapasConAlerta && proc.etapasConAlerta.length > 0 && (
-                      <span
-                        className="ml-1.5 inline-block h-2 w-2 rounded-full bg-yellow-400"
-                        title={`${proc.etapasConAlerta.length} etapa(s) con alerta`}
-                      />
-                    )}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge etapa={proc.etapaActual}>
+                        {ETIQUETA_ETAPA[proc.etapaActual]}
+                      </Badge>
+                      {proc.etapasConAlerta && proc.etapasConAlerta.length > 0 && (
+                        <span
+                          className="inline-block h-2 w-2 rounded-full bg-yellow-400"
+                          title={`${proc.etapasConAlerta.length} etapa(s) con alerta`}
+                        />
+                      )}
+                      {!!proc.pendientesValidacion && proc.pendientesValidacion > 0 && (
+                        <span
+                          className="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-red-500 text-white text-xs font-bold leading-none"
+                          title={`${proc.pendientesValidacion} actividad(es) pendiente(s) de validación`}
+                        >
+                          {proc.pendientesValidacion}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-700">{proc.anioFiscal}</td>
                 </tr>

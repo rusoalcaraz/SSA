@@ -20,7 +20,7 @@ export function Login() {
   function destino() {
     const from = (location.state as { from?: { pathname: string } })?.from?.pathname
     if (from && from !== '/login') return from
-    if (tieneRol('gerencial', 'superadmin')) return '/dashboard'
+    if (tieneRol('administrador', 'oficialia_mayor', 'dir_gral_admon')) return '/dashboard'
     return '/procedimientos'
   }
 

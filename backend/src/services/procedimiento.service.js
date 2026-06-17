@@ -5,6 +5,26 @@ const { DireccionGeneral } = require('../models/direccionGeneral.model');
 const { CatalogoEtapas } = require('../models/catalogoEtapas.model');
 const { crearError } = require('../middleware/errorHandler');
 
+const ROLES_LECTURA_GLOBAL = ['administrador', 'oficialia_mayor', 'dir_gral_admon'];
+
+function obtenerId(valor) {
+  if (!valor) return null;
+  if (typeof valor === 'string') return valor;
+  if (typeof valor === 'object') {
+    if (valor._id) return String(valor._id);
+    if (typeof valor.toString === 'function') return valor.toString();
+  }
+  return String(valor);
+}
+
+function perteneceAlMismoOrganismo(procedimiento, organismoId) {
+  return Boolean(
+    organismoId &&
+    procedimiento?.direccionGeneral &&
+    obtenerId(procedimiento.direccionGeneral) === String(organismoId)
+  );
+}
+
 /**
  * Genera el numero de procedimiento con el formato:
  * SSA-{ANIO}-{SIGLAS_DG}-{SECUENCIA_PADDED_4}
@@ -36,10 +56,13 @@ async function generarNumeroProcedimiento(direccionGeneralId, anioFiscal) {
  */
 function filtroByRol(usuario) {
   switch (usuario.rol) {
-    case 'superadmin':
-    case 'gerencial':
-    case 'area_contratante':
+    case 'administrador':
+    case 'oficialia_mayor':
+    case 'dir_gral_admon':
       return {};
+
+    case 'integrante_adquisiciones':
+      return usuario.dgId ? { direccionGeneral: usuario.dgId } : null;
 
     case 'asesor_tecnico':
       return {
@@ -49,11 +72,7 @@ function filtroByRol(usuario) {
         ],
       };
 
-    case 'dgt':
-      return { direccionGeneral: usuario.dgId };
-
     default:
-      // inspeccion y cualquier otro rol sin acceso al listado general
       return null;
   }
 }
@@ -62,10 +81,29 @@ function filtroByRol(usuario) {
  * Verifica que un AT (titular o suplente) tenga acceso al procedimiento.
  */
 function esMiProcedimiento(procedimiento, usuarioId) {
-  return (
-    procedimiento.asesorTitular.equals(usuarioId) ||
-    (procedimiento.asesorSuplente && procedimiento.asesorSuplente.equals(usuarioId))
+  return Boolean(
+    (procedimiento.asesorTitular && procedimiento.asesorTitular.equals(usuarioId)) ||
+      (procedimiento.asesorSuplente && procedimiento.asesorSuplente.equals(usuarioId))
   );
+}
+
+function puedeVerProcedimiento(procedimiento, usuario) {
+  if (ROLES_LECTURA_GLOBAL.includes(usuario.rol)) return true;
+  if (usuario.rol === 'integrante_adquisiciones') {
+    return perteneceAlMismoOrganismo(procedimiento, usuario.dgId);
+  }
+  if (usuario.rol === 'asesor_tecnico') {
+    return esMiProcedimiento(procedimiento, usuario.id);
+  }
+  return false;
+}
+
+function puedeGestionarProcedimiento(procedimiento, usuario) {
+  if (usuario.rol === 'administrador') return true;
+  if (usuario.rol === 'integrante_adquisiciones') {
+    return perteneceAlMismoOrganismo(procedimiento, usuario.dgId);
+  }
+  return false;
 }
 
 /**
@@ -108,8 +146,12 @@ async function inicializarEtapas(tipoProcedimiento) {
 }
 
 module.exports = {
+  ROLES_LECTURA_GLOBAL,
   generarNumeroProcedimiento,
   filtroByRol,
   esMiProcedimiento,
+  perteneceAlMismoOrganismo,
+  puedeVerProcedimiento,
+  puedeGestionarProcedimiento,
   inicializarEtapas,
 };

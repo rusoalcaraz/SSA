@@ -6,12 +6,16 @@ const bcrypt = require('bcrypt');
 const SALT_ROUNDS = 12;
 
 const ROLES = [
-  'superadmin',
-  'gerencial',
-  'area_contratante',
+  'administrador',
+  'oficialia_mayor',
+  'dir_gral_admon',
+  'integrante_adquisiciones',
   'asesor_tecnico',
-  'dgt',
-  'inspeccion',
+];
+
+const ROLES_CON_ORGANISMO = [
+  'integrante_adquisiciones',
+  'asesor_tecnico',
 ];
 
 const usuarioSchema = new mongoose.Schema(
@@ -43,7 +47,7 @@ const usuarioSchema = new mongoose.Schema(
       enum: { values: ROLES, message: 'Rol no valido: {VALUE}' },
       required: [true, 'El rol es requerido'],
     },
-    // Solo para rol 'dgt': referencia a la DG a la que pertenece
+    // Referencia al organismo al que pertenece el usuario, cuando aplica.
     direccionGeneral: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'DireccionGeneral',
@@ -82,12 +86,12 @@ const usuarioSchema = new mongoose.Schema(
   }
 );
 
-// --- Validacion: direccionGeneral obligatoria para rol 'dgt' ---
+// --- Validacion: direccionGeneral obligatoria para roles con organismo ---
 usuarioSchema.pre('validate', function (next) {
-  if (this.rol === 'dgt' && !this.direccionGeneral) {
+  if (ROLES_CON_ORGANISMO.includes(this.rol) && !this.direccionGeneral) {
     this.invalidate(
       'direccionGeneral',
-      'La Direccion General es obligatoria para el rol dgt'
+      `El organismo es obligatorio para el rol ${this.rol}`
     );
   }
   next();
@@ -116,4 +120,4 @@ usuarioSchema.index({ direccionGeneral: 1 });
 
 const Usuario = mongoose.model('Usuario', usuarioSchema);
 
-module.exports = { Usuario, ROLES };
+module.exports = { Usuario, ROLES, ROLES_CON_ORGANISMO };

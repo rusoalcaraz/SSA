@@ -129,7 +129,7 @@ async function construirResumen(filtroProcedimientos) {
 
 // -------------------------------------------------------
 // GET /api/v1/dashboard/resumen
-// Roles: gerencial, superadmin
+// Roles: oficialia_mayor, dir_gral_admon, administrador
 // -------------------------------------------------------
 async function resumen(req, res, next) {
   try {
@@ -146,7 +146,7 @@ async function resumen(req, res, next) {
 
 // -------------------------------------------------------
 // GET /api/v1/dashboard/por-dg/:dgId
-// Roles: gerencial, superadmin
+// Roles: oficialia_mayor, dir_gral_admon, administrador
 // -------------------------------------------------------
 async function porDG(req, res, next) {
   try {
@@ -181,7 +181,7 @@ async function porDG(req, res, next) {
 
 // -------------------------------------------------------
 // GET /api/v1/dashboard/mis-procedimientos
-// Roles: asesor_tecnico, dgt, area_contratante
+// Roles: asesor_tecnico, integrante_adquisiciones, administrador
 // -------------------------------------------------------
 async function misProcedimientos(req, res, next) {
   try {
@@ -192,11 +192,11 @@ async function misProcedimientos(req, res, next) {
     let filtroBase = {};
     if (rol === 'asesor_tecnico') {
       filtroBase = { $or: [{ asesorTitular: usuarioId }, { asesorSuplente: usuarioId }] };
-    } else if (rol === 'dgt') {
-      if (!dgId) throw crearError(400, 'DG_NO_ASIGNADA', 'El usuario DGT no tiene Direccion General asignada');
+    } else if (rol === 'integrante_adquisiciones') {
+      if (!dgId) throw crearError(400, 'DG_NO_ASIGNADA', 'El usuario no tiene organismo asignado');
       filtroBase = { direccionGeneral: dgId };
     }
-    // area_contratante ve todos — filtroBase vacio
+    // administrador ve todos — filtroBase vacio
 
     if (etapaActual) filtroBase.etapaActual = etapaActual;
     if (urgente !== undefined) filtroBase.urgente = urgente === 'true';
@@ -258,7 +258,7 @@ async function misProcedimientos(req, res, next) {
 
 // -------------------------------------------------------
 // GET /api/v1/dashboard/kpi-detalle?tipo=urgentes|vencidas|proximas|total&anioFiscal=
-// Roles: gerencial, superadmin
+// Roles: oficialia_mayor, dir_gral_admon, administrador
 // -------------------------------------------------------
 async function kpiDetalle(req, res, next) {
   try {

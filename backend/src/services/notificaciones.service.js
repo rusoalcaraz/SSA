@@ -107,7 +107,7 @@ function correosAT(procedimiento) {
 }
 
 // -------------------------------------------------------
-// 1. Notificacion: AC propone cambio de fecha → AT titular + suplente
+// 1. Notificacion: integrante de adquisiciones propone cambio de fecha → AT titular + suplente
 // -------------------------------------------------------
 async function notificarCambioFecha(procedimiento, etapa, fechaNueva, motivo) {
   const destinatarios = correosAT(procedimiento);
@@ -117,9 +117,9 @@ async function notificarCambioFecha(procedimiento, etapa, fechaNueva, motivo) {
     destinatarios,
     asunto: `[SSA] Propuesta de cambio de fecha — ${procedimiento.numeroProcedimiento}`,
     cuerpoHtml: plantillaBase(
-      'El Area Contratante propone un cambio de fecha',
+      'Integrante de adquisiciones propone un cambio de fecha',
       `
-      <div class="alerta">El Area Contratante ha propuesto una nueva fecha para la siguiente etapa. Por favor, ingrese al sistema para aceptar o rechazar el cambio.</div>
+      <div class="alerta">Se ha propuesto una nueva fecha para la siguiente etapa. Por favor, ingrese al sistema para aceptar o rechazar el cambio.</div>
       ${filaProcedimiento(procedimiento, etapa)}
       <p class="dato"><strong>Fecha propuesta:</strong> ${fechaFormato}</p>
       ${motivo ? `<p class="dato"><strong>Motivo:</strong> ${motivo}</p>` : ''}
@@ -129,10 +129,10 @@ async function notificarCambioFecha(procedimiento, etapa, fechaNueva, motivo) {
 }
 
 // -------------------------------------------------------
-// 2. Notificacion: Etapa vencida → AT titular + suplente + DGT de la DG
+// 2. Notificacion: Etapa vencida → AT titular + suplente + integrantes del organismo
 // -------------------------------------------------------
-async function notificarVencimiento(procedimiento, etapa, correosDGT) {
-  const destinatarios = [...correosAT(procedimiento), ...correosDGT];
+async function notificarVencimiento(procedimiento, etapa, correosOrganismo) {
+  const destinatarios = [...correosAT(procedimiento), ...correosOrganismo];
 
   await enviar({
     destinatarios,
@@ -170,10 +170,10 @@ async function notificarProximoVencimiento(procedimiento, etapa) {
 }
 
 // -------------------------------------------------------
-// 4. Notificacion: Procedimiento urgente creado → Gerencial + DGT de la DG
+// 4. Notificacion: Procedimiento urgente creado → perfiles de consulta global + integrantes del organismo
 // -------------------------------------------------------
-async function notificarProcedimientoUrgente(procedimiento, correosGerencial, correosDGT) {
-  const destinatarios = [...correosGerencial, ...correosDGT];
+async function notificarProcedimientoUrgente(procedimiento, correosConsultaGlobal, correosOrganismo) {
+  const destinatarios = [...correosConsultaGlobal, ...correosOrganismo];
 
   await enviar({
     destinatarios,

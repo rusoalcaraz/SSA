@@ -9,12 +9,11 @@ const _actividadCache = new Map();
 const THROTTLE_MS = 60_000; // escribe en BD como maximo una vez por minuto por usuario
 
 const ROLES_VALIDOS = [
-  'superadmin',
-  'gerencial',
-  'area_contratante',
+  'administrador',
+  'oficialia_mayor',
+  'dir_gral_admon',
+  'integrante_adquisiciones',
   'asesor_tecnico',
-  'dgt',
-  'inspeccion',
 ];
 
 /**

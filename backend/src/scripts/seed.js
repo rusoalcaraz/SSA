@@ -4,7 +4,7 @@
  * Script de inicializacion de datos base.
  * Uso: node src/scripts/seed.js
  *
- * - Crea un usuario superadmin si no existe.
+ * - Crea un usuario administrador si no existe.
  * - Crea las etapas del catalogo si no existen.
  * - Crea bienes/servicios de ejemplo si no existen.
  * - Crea direcciones generales de ejemplo si no existen.
@@ -24,12 +24,12 @@ const { Procedimiento } = require('../models/procedimiento.model');
 // -------------------------------------------------------
 // Datos a sembrar
 // -------------------------------------------------------
-const SUPERADMIN = {
+const ADMINISTRADOR = {
   nombre: 'Admin',
   apellidos: 'Sistema',
   correo: 'admin@ssa.gob.mx',
   passwordHash: 'Admin1234!',   // el pre-save lo hashea
-  rol: 'superadmin',
+  rol: 'administrador',
   activo: true,
 };
 
@@ -176,14 +176,14 @@ const ETAPAS_HOJA_TRABAJO = [
 // -------------------------------------------------------
 // Funciones de seed
 // -------------------------------------------------------
-async function seedSuperadmin() {
-  const existe = await Usuario.findOne({ correo: SUPERADMIN.correo });
+async function seedAdministrador() {
+  const existe = await Usuario.findOne({ correo: ADMINISTRADOR.correo });
   if (existe) {
-    console.log(`  [skip] Superadmin ya existe: ${SUPERADMIN.correo}`);
+    console.log(`  [skip] Administrador ya existe: ${ADMINISTRADOR.correo}`);
     return;
   }
-  await Usuario.create(SUPERADMIN);
-  console.log(`  [ok]   Superadmin creado: ${SUPERADMIN.correo} / contrasena: Admin1234!`);
+  await Usuario.create(ADMINISTRADOR);
+  console.log(`  [ok]   Administrador creado: ${ADMINISTRADOR.correo} / contrasena: Admin1234!`);
 }
 
 async function seedDGs() {
@@ -309,8 +309,8 @@ async function main() {
   await mongoose.connect(uri);
   console.log('Conexion establecida.\n');
 
-  console.log('=== Superadmin ===');
-  await seedSuperadmin();
+  console.log('=== Administrador ===');
+  await seedAdministrador();
 
   console.log('\n=== Direcciones Generales ===');
   await seedDGs();

@@ -34,10 +34,10 @@ export default function App() {
               {/* Redireccion raiz */}
               <Route index element={<Navigate to="/procedimientos" replace />} />
 
-              {/* Dashboard — gerencial y superadmin */}
+              {/* Dashboard global */}
               <Route
                 path="dashboard"
-                element={<ProtectedRoute roles={['superadmin', 'gerencial']} />}
+                element={<ProtectedRoute roles={['administrador', 'oficialia_mayor', 'dir_gral_admon']} />}
               >
                 <Route index element={<Dashboard />} />
               </Route>
@@ -47,14 +47,20 @@ export default function App() {
                 path="procedimientos"
                 element={
                   <ProtectedRoute
-                    roles={['superadmin', 'gerencial', 'area_contratante', 'asesor_tecnico', 'dgt']}
+                    roles={[
+                      'administrador',
+                      'oficialia_mayor',
+                      'dir_gral_admon',
+                      'integrante_adquisiciones',
+                      'asesor_tecnico',
+                    ]}
                   />
                 }
               >
                 <Route index element={<ListaProcedimientos />} />
                 <Route
                   path="nuevo"
-                  element={<ProtectedRoute roles={['superadmin', 'area_contratante']} />}
+                  element={<ProtectedRoute roles={['administrador', 'integrante_adquisiciones']} />}
                 >
                   <Route index element={<NuevoProcedimiento />} />
                 </Route>
@@ -67,36 +73,62 @@ export default function App() {
                 </Route>
               </Route>
 
-              {/* Mis procedimientos — vista propia para roles operativos */}
+              {/* Mis procedimientos — vista propia para asesores */}
               <Route
                 path="mis-procedimientos"
                 element={
                   <ProtectedRoute
-                    roles={['superadmin', 'area_contratante', 'asesor_tecnico', 'dgt']}
+                    roles={['asesor_tecnico']}
                   />
                 }
               >
                 <Route index element={<ListaProcedimientos />} />
               </Route>
 
-              {/* Reportes — superadmin, gerencial, area_contratante */}
+              {/* Reportes */}
               <Route
                 path="reportes"
                 element={
-                  <ProtectedRoute roles={['superadmin', 'gerencial', 'area_contratante']} />
+                  <ProtectedRoute
+                    roles={[
+                      'administrador',
+                      'oficialia_mayor',
+                      'dir_gral_admon',
+                      'integrante_adquisiciones',
+                    ]}
+                  />
                 }
               >
                 <Route index element={<Reportes />} />
               </Route>
 
-              {/* Admin — solo superadmin */}
-              <Route
-                path="admin"
-                element={<ProtectedRoute roles={['superadmin']} />}
-              >
-                <Route path="usuarios" element={<Usuarios />} />
-                <Route path="organismos" element={<DireccionesGenerales />} />
-                <Route path="direcciones-generales" element={<Navigate to="/admin/organismos" replace />} />
+              {/* Administracion */}
+              <Route path="admin" element={<ProtectedRoute />}>
+                <Route
+                  path="usuarios"
+                  element={
+                    <ProtectedRoute
+                      roles={[
+                        'administrador',
+                        'oficialia_mayor',
+                        'dir_gral_admon',
+                        'integrante_adquisiciones',
+                      ]}
+                    />
+                  }
+                >
+                  <Route index element={<Usuarios />} />
+                </Route>
+                <Route
+                  path="organismos"
+                  element={<ProtectedRoute roles={['administrador', 'oficialia_mayor', 'dir_gral_admon']} />}
+                >
+                  <Route index element={<DireccionesGenerales />} />
+                </Route>
+                <Route
+                  path="direcciones-generales"
+                  element={<Navigate to="/admin/organismos" replace />}
+                />
               </Route>
 
             </Route>

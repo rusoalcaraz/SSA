@@ -7,6 +7,7 @@ const CLASES: Record<EstadoEtapa, string> = {
   vencido: 'bg-red-100 text-red-700',
   fecha_propuesta: 'bg-yellow-100 text-yellow-800',
   fecha_rechazada: 'bg-orange-100 text-orange-800',
+  completado_propuesto: 'bg-purple-100 text-purple-800',
 }
 
 const ETIQUETAS: Record<EstadoEtapa, string> = {
@@ -16,6 +17,7 @@ const ETIQUETAS: Record<EstadoEtapa, string> = {
   vencido: 'Vencido',
   fecha_propuesta: 'Fecha propuesta',
   fecha_rechazada: 'Fecha rechazada',
+  completado_propuesto: 'Pend. validación',
 }
 
 export function EstadoEtapaBadge({ estado }: { estado: EstadoEtapa }) {

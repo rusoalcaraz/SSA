@@ -4,11 +4,15 @@ const { Procedimiento } = require('../../models/procedimiento.model');
 const { crearError } = require('../../middleware/errorHandler');
 const { ok, creado } = require('../../utils/respuesta');
 const auditLog = require('../../services/auditLog.service');
-const { esMiProcedimiento } = require('../../services/procedimiento.service');
+const {
+  esMiProcedimiento,
+  puedeGestionarProcedimiento,
+  perteneceAlMismoOrganismo,
+} = require('../../services/procedimiento.service');
 
 // -------------------------------------------------------
 // GET /api/v1/procedimientos/:id/entregas
-// Roles: area_contratante, inspeccion, gerencial, dgt, superadmin
+// Roles: administrador, oficialia_mayor, dir_gral_admon, integrante_adquisiciones, asesor_tecnico
 // -------------------------------------------------------
 async function listar(req, res, next) {
   try {
@@ -26,8 +30,8 @@ async function listar(req, res, next) {
     if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
     }
-    if (rol === 'dgt' && !procedimiento.direccionGeneral.equals(dgId)) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otra Direccion General');
+    if (rol === 'integrante_adquisiciones' && !perteneceAlMismoOrganismo(procedimiento, dgId)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otro organismo');
     }
 
     return ok(res, procedimiento.entregas, 'Entregas obtenidas');
@@ -38,7 +42,7 @@ async function listar(req, res, next) {
 
 // -------------------------------------------------------
 // POST /api/v1/procedimientos/:id/entregas
-// Roles: area_contratante, superadmin
+// Roles: integrante_adquisiciones, administrador
 // -------------------------------------------------------
 async function crear(req, res, next) {
   try {
@@ -51,6 +55,10 @@ async function crear(req, res, next) {
     const procedimiento = await Procedimiento.findById(req.params.id);
     if (!procedimiento) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
     }
 
     if (['concluido', 'cancelado'].includes(procedimiento.etapaActual)) {
@@ -86,13 +94,17 @@ async function crear(req, res, next) {
 
 // -------------------------------------------------------
 // PUT /api/v1/procedimientos/:id/entregas/:entregaId
-// Roles: area_contratante, superadmin
+// Roles: integrante_adquisiciones, administrador
 // -------------------------------------------------------
 async function actualizar(req, res, next) {
   try {
     const procedimiento = await Procedimiento.findById(req.params.id);
     if (!procedimiento) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
     }
 
     const entrega = procedimiento.entregas.id(req.params.entregaId);
@@ -118,7 +130,7 @@ async function actualizar(req, res, next) {
 
 // -------------------------------------------------------
 // POST /api/v1/procedimientos/:id/entregas/:entregaId/documento
-// Roles: inspeccion, superadmin
+// Roles: integrante_adquisiciones, administrador
 // -------------------------------------------------------
 async function subirDocumento(req, res, next) {
   try {
@@ -134,6 +146,10 @@ async function subirDocumento(req, res, next) {
     const procedimiento = await Procedimiento.findById(req.params.id);
     if (!procedimiento) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
     }
 
     const entrega = procedimiento.entregas.id(req.params.entregaId);
@@ -167,4 +183,115 @@ async function subirDocumento(req, res, next) {
   }
 }
 
-module.exports = { listar, crear, actualizar, subirDocumento };
+// -------------------------------------------------------
+// PATCH /api/v1/procedimientos/:id/entregas/:entregaId/proponer-recibida
+// Roles: asesor_tecnico
+// El AT propone que la entrega fue recibida; queda en recibida_propuesta.
+// -------------------------------------------------------
+async function proponerRecibida(req, res, next) {
+  try {
+    const procedimiento = await Procedimiento.findById(req.params.id);
+    if (!procedimiento) {
+      throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    if (!esMiProcedimiento(procedimiento, req.usuario.id) && req.usuario.rol !== 'administrador') {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo el asesor tecnico asignado puede proponer entregas');
+    }
+
+    const entrega = procedimiento.entregas.id(req.params.entregaId);
+    if (!entrega) {
+      throw crearError(404, 'ENTREGA_NO_ENCONTRADA', 'Entrega no encontrada');
+    }
+
+    if (entrega.estado === 'recibida') {
+      throw crearError(409, 'ENTREGA_YA_RECIBIDA', 'La entrega ya fue marcada como recibida');
+    }
+
+    if (entrega.estado === 'recibida_propuesta') {
+      throw crearError(409, 'ENTREGA_PENDIENTE_VALIDACION', 'Ya se propuso la recepcion de esta entrega; espere la validacion');
+    }
+
+    entrega.estado = 'recibida_propuesta';
+    entrega.propuestoPor = req.usuario.id;
+    entrega.propuestoEn = new Date();
+
+    await procedimiento.save();
+
+    await auditLog.registrar({
+      usuarioId: req.usuario.id,
+      accion: 'PROPONER_RECIBIDA_ENTREGA',
+      recurso: 'entrega',
+      recursoId: entrega._id,
+      detalle: { procedimientoId: procedimiento._id },
+      req,
+    });
+
+    return ok(res, entrega, 'Se propuso la recepcion de la entrega. Pendiente de validacion.');
+  } catch (error) {
+    next(error);
+  }
+}
+
+// -------------------------------------------------------
+// PATCH /api/v1/procedimientos/:id/entregas/:entregaId/validar
+// Roles: integrante_adquisiciones, administrador
+// IA confirma o rechaza la propuesta del AT.
+// -------------------------------------------------------
+async function validarEntrega(req, res, next) {
+  try {
+    const { respuesta } = req.body;
+    if (!['si', 'no'].includes(respuesta)) {
+      throw crearError(400, 'RESPUESTA_INVALIDA', 'La respuesta debe ser "si" o "no"');
+    }
+
+    const procedimiento = await Procedimiento.findById(req.params.id);
+    if (!procedimiento) {
+      throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para validar entregas');
+    }
+
+    const entrega = procedimiento.entregas.id(req.params.entregaId);
+    if (!entrega) {
+      throw crearError(404, 'ENTREGA_NO_ENCONTRADA', 'Entrega no encontrada');
+    }
+
+    if (entrega.estado !== 'recibida_propuesta') {
+      throw crearError(409, 'SIN_PROPUESTA_PENDIENTE', 'Esta entrega no tiene una propuesta de recepcion pendiente');
+    }
+
+    if (respuesta === 'si') {
+      entrega.estado = 'recibida';
+      entrega.fechaReal = new Date();
+    } else {
+      entrega.estado = 'pendiente';
+    }
+
+    entrega.propuestoPor = undefined;
+    entrega.propuestoEn = undefined;
+
+    await procedimiento.save();
+
+    await auditLog.registrar({
+      usuarioId: req.usuario.id,
+      accion: respuesta === 'si' ? 'VALIDAR_ENTREGA_SI' : 'VALIDAR_ENTREGA_NO',
+      recurso: 'entrega',
+      recursoId: entrega._id,
+      detalle: { procedimientoId: procedimiento._id },
+      req,
+    });
+
+    const mensaje = respuesta === 'si'
+      ? 'Entrega validada y marcada como recibida'
+      : 'Propuesta de recepcion rechazada';
+
+    return ok(res, entrega, mensaje);
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { listar, crear, actualizar, subirDocumento, proponerRecibida, validarEntrega };

@@ -4,6 +4,7 @@ import { reportesService, type FiltroReporte } from '../services/reportes.servic
 import { catalogosService } from '../services/catalogos.service'
 import { mensajeDeError } from '../services/api'
 import { ETIQUETA_ETAPA, ETIQUETA_TIPO_LARGO } from '../utils/formato'
+import { useAuth } from '../hooks/useAuth'
 
 const ETAPAS_ORDEN: EtapaActual[] = ['cronograma', 'hoja_de_trabajo', 'entregas', 'concluido', 'cancelado']
 
@@ -16,6 +17,8 @@ const TIPOS: TipoProcedimiento[] = [
 ]
 
 export function Reportes() {
+  const { usuario, tieneRol } = useAuth()
+  const esIntegrante = tieneRol('integrante_adquisiciones')
   const [dgs, setDgs] = useState<DireccionGeneral[]>([])
 
   const [anioFiscal, setAnioFiscal] = useState('')
@@ -29,8 +32,19 @@ export function Reportes() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    catalogosService.listarDGs().then(setDgs).catch(() => {})
-  }, [])
+    catalogosService
+      .listarDGs()
+      .then((lista) => {
+        if (esIntegrante && usuario?.direccionGeneral) {
+          const propias = lista.filter((dg) => dg._id === usuario.direccionGeneral)
+          setDgs(propias)
+          setDgId(usuario.direccionGeneral)
+          return
+        }
+        setDgs(lista)
+      })
+      .catch(() => {})
+  }, [esIntegrante, usuario?.direccionGeneral])
 
   function buildFiltros(): FiltroReporte {
     return {
@@ -86,6 +100,11 @@ export function Reportes() {
       <p className="text-sm text-gray-500 mb-6">
         Aplica filtros opcionales y descarga el reporte en el formato deseado.
       </p>
+      {esIntegrante && (
+        <p className="text-sm text-gray-500 mb-6 -mt-4">
+          Los reportes se limitan automáticamente a su organismo.
+        </p>
+      )}
 
       <div className="bg-white rounded-lg border border-gray-200 px-6 py-5 mb-5">
         <h2 className="text-sm font-semibold text-gray-700 mb-4">Filtros</h2>
@@ -117,6 +136,7 @@ export function Reportes() {
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
               value={dgId}
               onChange={(e) => setDgId(e.target.value)}
+              disabled={esIntegrante}
             >
               <option value="">Todas</option>
               {dgs.map((dg) => (

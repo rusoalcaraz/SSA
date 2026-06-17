@@ -4,6 +4,7 @@ import { catalogosService } from '../../services/catalogos.service'
 import { mensajeDeError } from '../../services/api'
 import { Modal } from '../../components/ui/Modal'
 import { Spinner } from '../../components/ui/Spinner'
+import { useAuth } from '../../hooks/useAuth'
 
 // -------------------------------------------------------
 // Modal crear / editar DG
@@ -114,11 +115,13 @@ function ModalDG({
 // Pagina principal
 // -------------------------------------------------------
 export function DireccionesGenerales() {
+  const { tieneRol } = useAuth()
   const [dgs, setDgs] = useState<DireccionGeneral[]>([])
   const [cargando, setCargando] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [modalDG, setModalDG] = useState<DireccionGeneral | null | 'nueva'>(null)
   const [desactivando, setDesactivando] = useState<string | null>(null)
+  const puedeEditar = tieneRol('administrador')
 
   const cargar = useCallback(() => {
     setCargando(true)
@@ -132,7 +135,7 @@ export function DireccionesGenerales() {
   useEffect(() => { cargar() }, [cargar])
 
   async function handleDesactivar(dg: DireccionGeneral) {
-    if (!confirm(`¿Desactivar "${dg.nombre}"? Los usuarios DGT de este organismo quedaran sin asignacion.`)) return
+    if (!confirm(`¿Desactivar "${dg.nombre}"? Los usuarios de ese organismo conservarán su referencia pero no podrán usar un organismo inactivo.`)) return
     setDesactivando(dg._id)
     try {
       await catalogosService.desactivarDG(dg._id)
@@ -147,14 +150,21 @@ export function DireccionesGenerales() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Organismos</h1>
-        <button
-          type="button"
-          onClick={() => setModalDG('nueva')}
-          className="px-4 py-2 text-sm rounded-md bg-blue-900 text-white hover:bg-blue-800 transition-colors"
-        >
-          Nuevo organismo
-        </button>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Organismos</h1>
+          {!puedeEditar && (
+            <p className="text-sm text-gray-500 mt-1">Vista de solo consulta.</p>
+          )}
+        </div>
+        {puedeEditar && (
+          <button
+            type="button"
+            onClick={() => setModalDG('nueva')}
+            className="px-4 py-2 text-sm rounded-md bg-blue-900 text-white hover:bg-blue-800 transition-colors"
+          >
+            Nuevo organismo
+          </button>
+        )}
       </div>
 
       {errorMsg && (
@@ -179,7 +189,7 @@ export function DireccionesGenerales() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Nombre</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Descripcion</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Estado</th>
-                  <th className="px-4 py-3" />
+                  {puedeEditar && <th className="px-4 py-3" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -199,27 +209,29 @@ export function DireccionesGenerales() {
                         {dg.activa ? 'Activa' : 'Inactiva'}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setModalDG(dg)}
-                          className="text-xs text-blue-700 hover:underline"
-                        >
-                          Editar
-                        </button>
-                        {dg.activa && (
+                    {puedeEditar && (
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 justify-end">
                           <button
                             type="button"
-                            disabled={desactivando === dg._id}
-                            onClick={() => handleDesactivar(dg)}
-                            className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                            onClick={() => setModalDG(dg)}
+                            className="text-xs text-blue-700 hover:underline"
                           >
-                            {desactivando === dg._id ? 'Desactivando...' : 'Desactivar'}
+                            Editar
                           </button>
-                        )}
-                      </div>
-                    </td>
+                          {dg.activa && (
+                            <button
+                              type="button"
+                              disabled={desactivando === dg._id}
+                              onClick={() => handleDesactivar(dg)}
+                              className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                            >
+                              {desactivando === dg._id ? 'Desactivando...' : 'Desactivar'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

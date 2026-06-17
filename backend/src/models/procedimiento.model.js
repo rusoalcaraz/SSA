@@ -119,7 +119,7 @@ const etapaProcedimientoSchema = new mongoose.Schema(
 
     estado: {
       type: String,
-      enum: ['pendiente', 'activo', 'completado', 'vencido', 'fecha_propuesta', 'fecha_rechazada'],
+      enum: ['pendiente', 'activo', 'completado', 'vencido', 'fecha_propuesta', 'fecha_rechazada', 'completado_propuesto'],
       default: 'pendiente',
     },
 
@@ -132,6 +132,10 @@ const etapaProcedimientoSchema = new mongoose.Schema(
     alertaEnviada: { type: Boolean, default: false },
     completadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     completadoEn: Date,
+
+    propuestoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
+    propuestoEn: Date,
+    estadoAnteriorPropuesta: String,
   },
   { _id: true }
 );
@@ -169,12 +173,14 @@ const entregaSchema = new mongoose.Schema(
     fechaReal: Date,
     estado: {
       type: String,
-      enum: ['pendiente', 'recibida', 'rechazada'],
+      enum: ['pendiente', 'recibida', 'rechazada', 'recibida_propuesta'],
       default: 'pendiente',
     },
     documentos: [documentoEntregaSchema],
     observaciones: String,
     registradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
+    propuestoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
+    propuestoEn: Date,
   },
   { _id: true }
 );
@@ -233,7 +239,7 @@ const procedimientoSchema = new mongoose.Schema(
     asesorTitular: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Usuario',
-      required: [true, 'El asesor titular es requerido'],
+      default: null,
     },
     asesorSuplente: {
       type: mongoose.Schema.Types.ObjectId,

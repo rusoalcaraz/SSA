@@ -15,7 +15,7 @@ export interface ActualizarEntregaPayload {
   tipo?: 'parcial' | 'total'
   fechaEstimada?: string
   fechaReal?: string
-  estado?: 'pendiente' | 'recibida' | 'rechazada'
+  estado?: 'pendiente' | 'recibida' | 'rechazada' | 'recibida_propuesta'
   observaciones?: string
 }
 
@@ -61,4 +61,26 @@ async function subirDocumento(
   return data.data
 }
 
-export const entregasService = { listar, crear, actualizar, subirDocumento }
+async function proponerRecibida(
+  procedimientoId: string,
+  entregaId: string
+): Promise<Entrega> {
+  const { data } = await api.patch<ApiResponse<Entrega>>(
+    `${base(procedimientoId)}/${entregaId}/proponer-recibida`
+  )
+  return data.data
+}
+
+async function validarEntrega(
+  procedimientoId: string,
+  entregaId: string,
+  respuesta: 'si' | 'no'
+): Promise<Entrega> {
+  const { data } = await api.patch<ApiResponse<Entrega>>(
+    `${base(procedimientoId)}/${entregaId}/validar`,
+    { respuesta }
+  )
+  return data.data
+}
+
+export const entregasService = { listar, crear, actualizar, subirDocumento, proponerRecibida, validarEntrega }

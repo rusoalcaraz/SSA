@@ -69,8 +69,21 @@ async function marcarNoAplica(
   return data.data
 }
 
+async function validarCompletado(
+  procedimientoId: string,
+  etapaId: string,
+  respuesta: 'si' | 'no'
+): Promise<EtapaProcedimiento> {
+  const { data } = await api.patch<ApiResponse<EtapaProcedimiento>>(
+    `${base(procedimientoId, etapaId)}/validar-completado`,
+    { respuesta }
+  )
+  return data.data
+}
+
 export const etapasService = {
   completar,
+  validarCompletado,
   proponerFecha,
   responderFecha,
   sobreescribirFecha,

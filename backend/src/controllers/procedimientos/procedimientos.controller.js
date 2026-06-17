@@ -7,7 +7,9 @@ const auditLog = require('../../services/auditLog.service');
 const {
   generarNumeroProcedimiento,
   filtroByRol,
-  esMiProcedimiento,
+  puedeVerProcedimiento,
+  puedeGestionarProcedimiento,
+  perteneceAlMismoOrganismo,
   inicializarEtapas,
 } = require('../../services/procedimiento.service');
 const { notificarProcedimientoUrgente } = require('../../services/notificaciones.service');
@@ -20,6 +22,26 @@ const POPULATE_BASICO = [
   { path: 'asesorSuplente', select: 'nombre apellidos correo' },
   { path: 'creadoPor', select: 'nombre apellidos' },
 ];
+
+async function validarAsesoresDelOrganismo(organismoId, asesorTitular, asesorSuplente) {
+  const idsAsesores = [asesorTitular, asesorSuplente].filter(Boolean);
+  if (idsAsesores.length === 0) return;
+
+  const asesores = await Usuario.find({
+    _id: { $in: idsAsesores },
+    rol: 'asesor_tecnico',
+    activo: true,
+    direccionGeneral: organismoId,
+  }).select('_id');
+
+  if (asesores.length !== idsAsesores.length) {
+    throw crearError(
+      400,
+      'ASESOR_INVALIDO',
+      'Los asesores tecnicos deben estar activos y pertenecer al mismo organismo del procedimiento'
+    );
+  }
+}
 
 // -------------------------------------------------------
 // GET /api/v1/procedimientos
@@ -69,7 +91,7 @@ async function listar(req, res, next) {
       }
     }
     if (tipoProcedimiento) filtro.tipoProcedimiento = tipoProcedimiento;
-    if (dgId && ['superadmin', 'gerencial'].includes(req.usuario.rol)) {
+    if (dgId && ['administrador', 'oficialia_mayor', 'dir_gral_admon'].includes(req.usuario.rol)) {
       filtro.direccionGeneral = dgId;
     }
 
@@ -84,11 +106,64 @@ async function listar(req, res, next) {
         .select('-cronograma -hojaDeTrabajoEtapas -entregas -evidenciaJustificacion -contrato')
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       Procedimiento.countDocuments(filtro),
     ]);
 
-    return ok(res, procedimientos, 'Procedimientos obtenidos', 200, {
+    // Agregar conteo de elementos pendientes de validacion por el IA
+    const ids = procedimientos.map((p) => p._id);
+    const conteos = ids.length > 0
+      ? await Procedimiento.aggregate([
+          { $match: { _id: { $in: ids } } },
+          {
+            $project: {
+              pendientesValidacion: {
+                $add: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: { $ifNull: ['$cronograma', []] },
+                        as: 'e',
+                        cond: { $eq: ['$$e.estado', 'completado_propuesto'] },
+                      },
+                    },
+                  },
+                  {
+                    $size: {
+                      $filter: {
+                        input: { $ifNull: ['$hojaDeTrabajoEtapas', []] },
+                        as: 'e',
+                        cond: { $eq: ['$$e.estado', 'completado_propuesto'] },
+                      },
+                    },
+                  },
+                  {
+                    $size: {
+                      $filter: {
+                        input: { $ifNull: ['$entregas', []] },
+                        as: 'e',
+                        cond: { $eq: ['$$e.estado', 'recibida_propuesta'] },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ])
+      : [];
+
+    const conteoPorId = Object.fromEntries(
+      conteos.map((c) => [c._id.toString(), c.pendientesValidacion])
+    );
+
+    const resultado = procedimientos.map((p) => ({
+      ...p,
+      pendientesValidacion: conteoPorId[p._id.toString()] || 0,
+    }));
+
+    return ok(res, resultado, 'Procedimientos obtenidos', 200, {
       page,
       limit,
       total,
@@ -118,16 +193,8 @@ async function obtener(req, res, next) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
     }
 
-    // Verificar acceso por rol
-    const { rol, id: usuarioId, dgId } = req.usuario;
-    if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
+    if (!puedeVerProcedimiento(procedimiento, req.usuario)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
-    }
-    if (rol === 'dgt' && !procedimiento.direccionGeneral._id.equals(dgId)) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otra Direccion General');
-    }
-    if (rol === 'inspeccion') {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Su rol solo tiene acceso a la seccion de Entregas');
     }
 
     return ok(res, procedimiento);
@@ -160,8 +227,27 @@ async function crear(req, res, next) {
       justificacionUrgencia,
     } = req.body;
 
+    const organismoObjetivo =
+      req.usuario.rol === 'integrante_adquisiciones'
+        ? req.usuario.dgId
+        : direccionGeneral;
+
+    if (!organismoObjetivo) {
+      throw crearError(400, 'DG_REQUERIDA', 'El organismo del procedimiento es obligatorio');
+    }
+
+    if (
+      req.usuario.rol === 'integrante_adquisiciones' &&
+      direccionGeneral &&
+      String(direccionGeneral) !== String(req.usuario.dgId)
+    ) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede crear procedimientos de su propio organismo');
+    }
+
+    await validarAsesoresDelOrganismo(organismoObjetivo, asesorTitular, asesorSuplente);
+
     const numeroProcedimiento = await generarNumeroProcedimiento(
-      direccionGeneral,
+      organismoObjetivo,
       anioFiscal || new Date().getFullYear()
     );
 
@@ -176,7 +262,7 @@ async function crear(req, res, next) {
       descripcionEspecifica,
       montoEstimado,
       moneda,
-      direccionGeneral,
+      direccionGeneral: organismoObjetivo,
       asesorTitular,
       asesorSuplente: asesorSuplente || null,
       tipoProcedimiento,
@@ -201,16 +287,24 @@ async function crear(req, res, next) {
       req,
     });
 
-    // Notificar procedimiento urgente a gerencial y DGT de la DG
+    // Notificar procedimiento urgente a roles de consulta global e integrantes del organismo.
     if (urgente) {
       Promise.all([
-        Usuario.find({ rol: 'gerencial', activo: true }).select('correo'),
-        Usuario.find({ rol: 'dgt', direccionGeneral: direccionGeneral, activo: true }).select('correo'),
+        Usuario.find({ rol: { $in: ['oficialia_mayor', 'dir_gral_admon'] }, activo: true }).select('correo'),
+        Usuario.find({
+          rol: 'integrante_adquisiciones',
+          direccionGeneral: organismoObjetivo,
+          activo: true,
+        }).select('correo'),
       ])
-        .then(([gerenciales, dgts]) => {
-          const correosGerencial = gerenciales.map((u) => u.correo);
-          const correosDGT = dgts.map((u) => u.correo);
-          return notificarProcedimientoUrgente(procedimiento, correosGerencial, correosDGT);
+        .then(([lecturaGlobal, integrantes]) => {
+          const correosLecturaGlobal = lecturaGlobal.map((u) => u.correo);
+          const correosIntegrantes = integrantes.map((u) => u.correo);
+          return notificarProcedimientoUrgente(
+            procedimiento,
+            correosLecturaGlobal,
+            correosIntegrantes
+          );
         })
         .catch((err) => console.error('[Notificaciones] crear urgente:', err.message));
     }
@@ -231,6 +325,10 @@ async function actualizar(req, res, next) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
     }
 
+    if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
+    }
+
     if (['concluido', 'cancelado'].includes(procedimiento.etapaActual)) {
       throw crearError(409, 'PROCEDIMIENTO_CERRADO', 'No se puede modificar un procedimiento concluido o cancelado');
     }
@@ -246,6 +344,12 @@ async function actualizar(req, res, next) {
         procedimiento[campo] = req.body[campo];
       }
     }
+
+    await validarAsesoresDelOrganismo(
+      procedimiento.direccionGeneral,
+      procedimiento.asesorTitular,
+      procedimiento.asesorSuplente
+    );
 
     await procedimiento.save();
 
@@ -277,18 +381,18 @@ async function marcarUrgente(req, res, next) {
       throw crearError(400, 'JUSTIFICACION_REQUERIDA', 'La justificacion de urgencia es obligatoria');
     }
 
-    const procedimiento = await Procedimiento.findByIdAndUpdate(
-      req.params.id,
-      {
-        urgente,
-        justificacionUrgencia: urgente ? justificacionUrgencia : undefined,
-      },
-      { new: true, runValidators: true }
-    );
-
+    const procedimiento = await Procedimiento.findById(req.params.id);
     if (!procedimiento) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
     }
+
+    if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
+    }
+
+    procedimiento.urgente = urgente;
+    procedimiento.justificacionUrgencia = urgente ? justificacionUrgencia : undefined;
+    await procedimiento.save();
 
     await auditLog.registrar({
       usuarioId: req.usuario.id,
@@ -317,6 +421,10 @@ async function actualizarJustificacion(req, res, next) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
     }
 
+    if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
+    }
+
     if (supuestoExcepcion !== undefined) procedimiento.supuestoExcepcion = supuestoExcepcion;
     if (tipoConsultoria !== undefined) procedimiento.tipoConsultoria = tipoConsultoria;
     if (justificacionTipo !== undefined) procedimiento.justificacionTipo = justificacionTipo;
@@ -338,6 +446,20 @@ async function actualizarInfoCronograma(req, res, next) {
     const procedimiento = await Procedimiento.findById(req.params.id);
     if (!procedimiento) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    if (
+      req.usuario.rol === 'integrante_adquisiciones' &&
+      !perteneceAlMismoOrganismo(procedimiento, req.usuario.dgId)
+    ) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede modificar procedimientos de su propio organismo');
+    }
+
+    if (
+      req.usuario.rol === 'asesor_tecnico' &&
+      !puedeVerProcedimiento(procedimiento, req.usuario)
+    ) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
     }
 
     const campos = [
@@ -372,6 +494,20 @@ async function actualizarInfoHojaDeTrabajo(req, res, next) {
     const procedimiento = await Procedimiento.findById(req.params.id);
     if (!procedimiento) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    if (
+      req.usuario.rol === 'integrante_adquisiciones' &&
+      !perteneceAlMismoOrganismo(procedimiento, req.usuario.dgId)
+    ) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede modificar procedimientos de su propio organismo');
+    }
+
+    if (
+      req.usuario.rol === 'asesor_tecnico' &&
+      !puedeVerProcedimiento(procedimiento, req.usuario)
+    ) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
     }
 
     const campos = [

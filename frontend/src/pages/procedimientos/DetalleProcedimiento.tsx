@@ -109,10 +109,16 @@ export function DetalleProcedimiento() {
     )
   }
 
-  const puedeEditarInfo = tieneRol('superadmin', 'area_contratante', 'asesor_tecnico')
-  const puedeVerCronograma = tieneRol('superadmin', 'area_contratante', 'asesor_tecnico', 'dgt', 'gerencial')
+  const puedeEditarInfo = tieneRol('administrador', 'integrante_adquisiciones', 'asesor_tecnico')
+  const puedeVerCronograma = tieneRol(
+    'administrador',
+    'integrante_adquisiciones',
+    'asesor_tecnico',
+    'oficialia_mayor',
+    'dir_gral_admon'
+  )
   const puedeVerHoja = puedeVerCronograma
-  const puedeVerEntregas = tieneRol('superadmin', 'area_contratante', 'asesor_tecnico', 'dgt', 'gerencial', 'inspeccion')
+  const puedeVerEntregas = puedeVerCronograma
 
   const tabs = [
     puedeVerCronograma && { to: 'cronograma', label: `Cronograma (${procedimiento.cronograma.length})` },

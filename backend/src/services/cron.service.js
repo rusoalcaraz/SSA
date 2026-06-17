@@ -11,11 +11,11 @@ const {
 const ESTADOS_ACTIVOS = ['pendiente', 'activo', 'fecha_propuesta', 'fecha_rechazada'];
 
 // -------------------------------------------------------
-// Helper: obtiene correos de los usuarios DGT de una DG
+// Helper: obtiene correos de los integrantes de adquisiciones de un organismo
 // -------------------------------------------------------
-async function correosDGT(direccionGeneralId) {
+async function correosIntegrantes(direccionGeneralId) {
   const usuarios = await Usuario.find({
-    rol: 'dgt',
+    rol: 'integrante_adquisiciones',
     direccionGeneral: direccionGeneralId,
     activo: true,
   }).select('correo');
@@ -28,7 +28,7 @@ async function correosDGT(direccionGeneralId) {
 // -------------------------------------------------------
 async function procesarEtapas(etapas, procedimiento, hoy, enTresDias) {
   let modificado = false;
-  const dgCorreos = await correosDGT(procedimiento.direccionGeneral);
+  const correosOrganismo = await correosIntegrantes(procedimiento.direccionGeneral);
 
   for (const etapa of etapas) {
     if (!ESTADOS_ACTIVOS.includes(etapa.estado) || !etapa.fechaPlaneada) continue;
@@ -38,7 +38,7 @@ async function procesarEtapas(etapas, procedimiento, hoy, enTresDias) {
 
     if (fecha < hoy) {
       // Etapa vencida
-      await notificarVencimiento(procedimiento, etapa, dgCorreos);
+      await notificarVencimiento(procedimiento, etapa, correosOrganismo);
       etapa.estado = 'vencido';
       etapa.alertaEnviada = true;
       modificado = true;

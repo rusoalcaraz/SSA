@@ -2,12 +2,11 @@
 // Roles
 // -------------------------------------------------------
 export type Rol =
-  | 'superadmin'
-  | 'gerencial'
-  | 'area_contratante'
+  | 'administrador'
+  | 'oficialia_mayor'
+  | 'dir_gral_admon'
+  | 'integrante_adquisiciones'
   | 'asesor_tecnico'
-  | 'dgt'
-  | 'inspeccion'
 
 // -------------------------------------------------------
 // Entidades base
@@ -81,6 +80,7 @@ export type EstadoEtapa =
   | 'vencido'
   | 'fecha_propuesta'
   | 'fecha_rechazada'
+  | 'completado_propuesto'
 
 // -------------------------------------------------------
 // Sub-tipos de procedimiento
@@ -119,6 +119,8 @@ export interface EtapaProcedimiento {
   alertaEnviada: boolean
   completadoPor?: UsuarioResumen
   completadoEn?: string
+  propuestoPor?: UsuarioResumen
+  propuestoEn?: string
 }
 
 export interface InfoCronograma {
@@ -168,10 +170,12 @@ export interface Entrega {
   tipo: 'parcial' | 'total'
   fechaEstimada?: string
   fechaReal?: string
-  estado: 'pendiente' | 'recibida' | 'rechazada'
+  estado: 'pendiente' | 'recibida' | 'rechazada' | 'recibida_propuesta'
   documentos: DocumentoEntrega[]
   observaciones?: string
   registradoPor?: UsuarioResumen
+  propuestoPor?: UsuarioResumen
+  propuestoEn?: string
 }
 
 export interface ArchivoAdjunto {
@@ -196,7 +200,7 @@ export interface Procedimiento {
   montoEstimado?: number
   moneda: string
   direccionGeneral: DireccionGeneral
-  asesorTitular: UsuarioResumen
+  asesorTitular?: UsuarioResumen | null
   asesorSuplente?: UsuarioResumen
   tipoProcedimiento: TipoProcedimiento
   supuestoExcepcion?: string
@@ -216,6 +220,8 @@ export interface Procedimiento {
   updatedAt: string
   // Campo calculado por el dashboard
   etapasConAlerta?: EtapaConAlerta[]
+  // Elementos pendientes de validacion por el IA (AT propuso conclusión)
+  pendientesValidacion?: number
 }
 
 export interface EtapaConAlerta {

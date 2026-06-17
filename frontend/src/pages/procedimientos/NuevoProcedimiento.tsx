@@ -7,6 +7,7 @@ import { mensajeDeError } from '../../services/api'
 import type { DireccionGeneral, BienServicio, UsuarioResumen, TipoProcedimiento, InfoCronograma } from '../../types'
 import { Spinner } from '../../components/ui/Spinner'
 import { ETIQUETA_TIPO_LARGO } from '../../utils/formato'
+import { useAuth } from '../../hooks/useAuth'
 
 const TIPOS_PROCEDIMIENTO: TipoProcedimiento[] = [
   'licitacion_publica_nacional',
@@ -63,6 +64,8 @@ const SELECT = INPUT
 
 export function NuevoProcedimiento() {
   const navigate = useNavigate()
+  const { usuario, tieneRol } = useAuth()
+  const esIntegrante = tieneRol('integrante_adquisiciones')
 
   // Datos de catalogos
   const [dgs, setDGs] = useState<DireccionGeneral[]>([])
@@ -118,6 +121,17 @@ export function NuevoProcedimiento() {
         setDGs(dgData)
         setBienesServicios(bsData)
         setAsesores(asData)
+
+        if (esIntegrante && usuario?.direccionGeneral) {
+          const organismoUsuario = dgData.find((dg) => dg._id === usuario.direccionGeneral)
+          setDireccionGeneral(usuario.direccionGeneral)
+          if (organismoUsuario) {
+            setInfoCronograma((valorActual) => ({
+              ...valorActual,
+              organismo: valorActual.organismo || organismoUsuario.siglas || organismoUsuario.nombre,
+            }))
+          }
+        }
       } catch {
         setError('No se pudieron cargar los catalogos. Recargue la pagina.')
       } finally {
@@ -125,7 +139,16 @@ export function NuevoProcedimiento() {
       }
     }
     cargar()
-  }, [])
+  }, [esIntegrante, usuario?.direccionGeneral])
+
+  const dgsDisponibles = esIntegrante && usuario?.direccionGeneral
+    ? dgs.filter((dg) => dg._id === usuario.direccionGeneral)
+    : dgs
+
+  const asesoresDisponibles = (direccionGeneral
+    ? asesores.filter((at) => at.direccionGeneral === direccionGeneral)
+    : asesores
+  )
 
   const requiereExcepcion = tipoProcedimiento !== '' && TIPOS_CON_EXCEPCION.includes(tipoProcedimiento as TipoProcedimiento)
   const requiereConsultoria = supuestoExcepcion === 'fraccion_X'
@@ -134,6 +157,10 @@ export function NuevoProcedimiento() {
     e.preventDefault()
     if (!tipoProcedimiento) {
       setError('Seleccione el tipo de procedimiento.')
+      return
+    }
+    if (esIntegrante && !usuario?.direccionGeneral) {
+      setError('Su usuario no tiene organismo asignado. Solicite la asignacion antes de crear procedimientos.')
       return
     }
     setError(null)
@@ -246,6 +273,8 @@ export function NuevoProcedimiento() {
                 onChange={(e) => {
                   const val = e.target.value
                   setDireccionGeneral(val)
+                  setAsesorTitular('')
+                  setAsesorSuplente('')
                   // Prefijar el "Organismo" del cronograma con las siglas de la DG seleccionada
                   const dg = dgs.find((x) => x._id === val)
                   if (dg) {
@@ -255,15 +284,20 @@ export function NuevoProcedimiento() {
                   }
                 }}
                 className={SELECT}
-                disabled={enviando}
+                disabled={enviando || esIntegrante}
               >
                 <option value="">Seleccionar organismo</option>
-                {dgs.map((dg) => (
+                {dgsDisponibles.map((dg) => (
                   <option key={dg._id} value={dg._id}>
                     {dg.siglas} — {dg.nombre}
                   </option>
                 ))}
               </select>
+              {esIntegrante && (
+                <p className="text-xs text-gray-400">
+                  El organismo se fija automaticamente con base en su perfil.
+                </p>
+              )}
             </Campo>
           </div>
 
@@ -343,7 +377,7 @@ export function NuevoProcedimiento() {
                 disabled={enviando}
               >
                 <option value="">Seleccionar asesor</option>
-                {asesores.map((at) => (
+                {asesoresDisponibles.map((at) => (
                   <option key={at._id} value={at._id}>
                     {at.nombre} {at.apellidos}
                   </option>
@@ -358,7 +392,7 @@ export function NuevoProcedimiento() {
                 disabled={enviando}
               >
                 <option value="">Sin suplente</option>
-                {asesores
+                {asesoresDisponibles
                   .filter((at) => at._id !== asesorTitular)
                   .map((at) => (
                     <option key={at._id} value={at._id}>

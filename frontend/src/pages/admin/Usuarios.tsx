@@ -11,52 +11,59 @@ import { mensajeDeError } from '../../services/api'
 import { Modal } from '../../components/ui/Modal'
 import { Paginacion } from '../../components/ui/Paginacion'
 import { Spinner } from '../../components/ui/Spinner'
+import { useAuth } from '../../hooks/useAuth'
 
 const ROLES_VALIDOS: Rol[] = [
-  'superadmin',
-  'gerencial',
-  'area_contratante',
+  'administrador',
+  'oficialia_mayor',
+  'dir_gral_admon',
+  'integrante_adquisiciones',
   'asesor_tecnico',
-  'dgt',
-  'inspeccion',
 ]
 
 const ETIQUETA_ROL: Record<Rol, string> = {
-  superadmin: 'Superadmin',
-  gerencial: 'Gerencial',
-  area_contratante: 'Area Contratante',
-  asesor_tecnico: 'Asesor Tecnico',
-  dgt: 'DGT',
-  inspeccion: 'Inspeccion',
+  administrador: 'Administrador',
+  oficialia_mayor: 'Oficialía Mayor',
+  dir_gral_admon: 'Dir. Gral. Admón.',
+  integrante_adquisiciones: 'Integrante de adquisiciones',
+  asesor_tecnico: 'Asesor técnico',
 }
 
 const ROL_COLOR: Record<Rol, string> = {
-  superadmin: 'bg-red-100 text-red-700',
-  gerencial: 'bg-purple-100 text-purple-800',
-  area_contratante: 'bg-blue-100 text-blue-800',
+  administrador: 'bg-red-100 text-red-700',
+  oficialia_mayor: 'bg-purple-100 text-purple-800',
+  dir_gral_admon: 'bg-indigo-100 text-indigo-800',
+  integrante_adquisiciones: 'bg-blue-100 text-blue-800',
   asesor_tecnico: 'bg-teal-100 text-teal-800',
-  dgt: 'bg-orange-100 text-orange-800',
-  inspeccion: 'bg-gray-100 text-gray-600',
 }
 
-// -------------------------------------------------------
-// Selector de DG (reutilizable en modales)
-// -------------------------------------------------------
+function rolRequiereOrganismo(rol: Rol) {
+  return rol === 'integrante_adquisiciones' || rol === 'asesor_tecnico'
+}
+
+function obtenerIdOrganismo(valor: string | DireccionGeneral | null | undefined) {
+  if (!valor) return ''
+  return typeof valor === 'string' ? valor : valor._id
+}
+
 function SelectDG({
   value,
   onChange,
   dgs,
   requerido,
+  disabled,
 }: {
   value: string
   onChange: (v: string) => void
   dgs: DireccionGeneral[]
   requerido?: boolean
+  disabled?: boolean
 }) {
   return (
     <select
       required={requerido}
-      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
+      disabled={disabled}
+      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900 disabled:bg-gray-50"
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >
@@ -70,28 +77,33 @@ function SelectDG({
   )
 }
 
-// -------------------------------------------------------
-// Modal crear usuario
-// -------------------------------------------------------
 function ModalCrearUsuario({
   dgs,
+  rolesDisponibles,
+  organismoFijo,
   onGuardado,
   onClose,
 }: {
   dgs: DireccionGeneral[]
+  rolesDisponibles: Rol[]
+  organismoFijo?: string
   onGuardado: () => void
   onClose: () => void
 }) {
+  const rolInicial = rolesDisponibles[0] ?? 'asesor_tecnico'
   const [form, setForm] = useState<CrearUsuarioPayload>({
     nombre: '',
     apellidos: '',
     correo: '',
     contrasena: '',
-    rol: 'asesor_tecnico',
-    direccionGeneral: '',
+    rol: rolInicial,
+    direccionGeneral: organismoFijo ?? '',
   })
   const [guardando, setGuardando] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const organismoBloqueado = Boolean(organismoFijo)
+  const organismoRequerido = rolRequiereOrganismo(form.rol)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -100,7 +112,9 @@ function ModalCrearUsuario({
     try {
       const payload: CrearUsuarioPayload = {
         ...form,
-        ...(form.direccionGeneral ? {} : { direccionGeneral: undefined }),
+        direccionGeneral: organismoBloqueado
+          ? organismoFijo
+          : (form.direccionGeneral || undefined),
       }
       await usuariosService.crear(payload)
       onGuardado()
@@ -124,7 +138,7 @@ function ModalCrearUsuario({
               required
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
               value={form.nombre}
-              onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+              onChange={(e) => setForm((valorActual) => ({ ...valorActual, nombre: e.target.value }))}
             />
           </div>
           <div>
@@ -136,25 +150,25 @@ function ModalCrearUsuario({
               required
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
               value={form.apellidos}
-              onChange={(e) => setForm((f) => ({ ...f, apellidos: e.target.value }))}
+              onChange={(e) => setForm((valorActual) => ({ ...valorActual, apellidos: e.target.value }))}
             />
           </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Correo electronico <span className="text-red-500">*</span>
+            Correo electrónico <span className="text-red-500">*</span>
           </label>
           <input
             type="email"
             required
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
             value={form.correo}
-            onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))}
+            onChange={(e) => setForm((valorActual) => ({ ...valorActual, correo: e.target.value }))}
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Contrasena <span className="text-red-500">*</span>
+            Contraseña <span className="text-red-500">*</span>
           </label>
           <input
             type="password"
@@ -162,9 +176,9 @@ function ModalCrearUsuario({
             minLength={8}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
             value={form.contrasena}
-            onChange={(e) => setForm((f) => ({ ...f, contrasena: e.target.value }))}
+            onChange={(e) => setForm((valorActual) => ({ ...valorActual, contrasena: e.target.value }))}
           />
-          <p className="text-xs text-gray-400 mt-1">Minimo 8 caracteres</p>
+          <p className="text-xs text-gray-400 mt-1">Mínimo 8 caracteres</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -174,25 +188,35 @@ function ModalCrearUsuario({
             required
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
             value={form.rol}
-            onChange={(e) => setForm((f) => ({ ...f, rol: e.target.value as Rol }))}
+            onChange={(e) =>
+              setForm((valorActual) => ({
+                ...valorActual,
+                rol: e.target.value as Rol,
+                direccionGeneral: organismoBloqueado ? organismoFijo ?? '' : valorActual.direccionGeneral,
+              }))
+            }
           >
-            {ROLES_VALIDOS.map((r) => (
-              <option key={r} value={r}>
-                {ETIQUETA_ROL[r]}
+            {rolesDisponibles.map((rol) => (
+              <option key={rol} value={rol}>
+                {ETIQUETA_ROL[rol]}
               </option>
             ))}
           </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Organismo{form.rol === 'dgt' && <span className="text-red-500"> *</span>}
+            Organismo{organismoRequerido && <span className="text-red-500"> *</span>}
           </label>
           <SelectDG
-            value={form.direccionGeneral ?? ''}
-            onChange={(v) => setForm((f) => ({ ...f, direccionGeneral: v }))}
+            value={organismoBloqueado ? (organismoFijo ?? '') : (form.direccionGeneral ?? '')}
+            onChange={(valor) => setForm((valorActual) => ({ ...valorActual, direccionGeneral: valor }))}
             dgs={dgs}
-            requerido={form.rol === 'dgt'}
+            requerido={organismoRequerido}
+            disabled={organismoBloqueado}
           />
+          {organismoBloqueado && (
+            <p className="text-xs text-gray-400 mt-1">El organismo se toma de su perfil.</p>
+          )}
         </div>
         {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
         <div className="flex justify-end gap-2 pt-1">
@@ -216,17 +240,18 @@ function ModalCrearUsuario({
   )
 }
 
-// -------------------------------------------------------
-// Modal editar usuario
-// -------------------------------------------------------
 function ModalEditarUsuario({
   usuario,
   dgs,
+  rolesDisponibles,
+  organismoFijo,
   onGuardado,
   onClose,
 }: {
   usuario: UsuarioCompleto
   dgs: DireccionGeneral[]
+  rolesDisponibles: Rol[]
+  organismoFijo?: string
   onGuardado: () => void
   onClose: () => void
 }) {
@@ -234,11 +259,14 @@ function ModalEditarUsuario({
     nombre: usuario.nombre,
     apellidos: usuario.apellidos,
     rol: usuario.rol,
-    direccionGeneral: (usuario.direccionGeneral as unknown as DireccionGeneral)?._id ?? '',
+    direccionGeneral: organismoFijo ?? obtenerIdOrganismo(usuario.direccionGeneral),
     activo: usuario.activo,
   })
   const [guardando, setGuardando] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const organismoBloqueado = Boolean(organismoFijo)
+  const organismoRequerido = rolRequiereOrganismo(form.rol ?? usuario.rol)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -247,7 +275,9 @@ function ModalEditarUsuario({
     try {
       await usuariosService.actualizar(usuario._id, {
         ...form,
-        direccionGeneral: form.direccionGeneral || undefined,
+        direccionGeneral: organismoBloqueado
+          ? organismoFijo
+          : (form.direccionGeneral || undefined),
       })
       onGuardado()
     } catch (err) {
@@ -267,7 +297,7 @@ function ModalEditarUsuario({
               type="text"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
               value={form.nombre ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+              onChange={(e) => setForm((valorActual) => ({ ...valorActual, nombre: e.target.value }))}
             />
           </div>
           <div>
@@ -276,7 +306,7 @@ function ModalEditarUsuario({
               type="text"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
               value={form.apellidos ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, apellidos: e.target.value }))}
+              onChange={(e) => setForm((valorActual) => ({ ...valorActual, apellidos: e.target.value }))}
             />
           </div>
         </div>
@@ -285,32 +315,36 @@ function ModalEditarUsuario({
           <select
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
             value={form.rol}
-            onChange={(e) => setForm((f) => ({ ...f, rol: e.target.value as Rol }))}
+            onChange={(e) => setForm((valorActual) => ({ ...valorActual, rol: e.target.value as Rol }))}
           >
-            {ROLES_VALIDOS.map((r) => (
-              <option key={r} value={r}>
-                {ETIQUETA_ROL[r]}
+            {rolesDisponibles.map((rol) => (
+              <option key={rol} value={rol}>
+                {ETIQUETA_ROL[rol]}
               </option>
             ))}
           </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Organismo{form.rol === 'dgt' && <span className="text-red-500"> *</span>}
+            Organismo{organismoRequerido && <span className="text-red-500"> *</span>}
           </label>
           <SelectDG
-            value={form.direccionGeneral ?? ''}
-            onChange={(v) => setForm((f) => ({ ...f, direccionGeneral: v }))}
+            value={organismoBloqueado ? (organismoFijo ?? '') : (form.direccionGeneral ?? '')}
+            onChange={(valor) => setForm((valorActual) => ({ ...valorActual, direccionGeneral: valor }))}
             dgs={dgs}
-            requerido={form.rol === 'dgt'}
+            requerido={organismoRequerido}
+            disabled={organismoBloqueado}
           />
+          {organismoBloqueado && (
+            <p className="text-xs text-gray-400 mt-1">El organismo se mantiene fijo por su perfil.</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
             id="activo"
             checked={form.activo ?? true}
-            onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))}
+            onChange={(e) => setForm((valorActual) => ({ ...valorActual, activo: e.target.checked }))}
             className="rounded border-gray-300 text-blue-900 focus:ring-blue-900"
           />
           <label htmlFor="activo" className="text-sm text-gray-700">
@@ -339,9 +373,6 @@ function ModalEditarUsuario({
   )
 }
 
-// -------------------------------------------------------
-// Modal reset password
-// -------------------------------------------------------
 function ModalResetPassword({
   usuario,
   onGuardado,
@@ -370,15 +401,15 @@ function ModalResetPassword({
   }
 
   return (
-    <Modal titulo="Resetear contrasena" onClose={onClose}>
+    <Modal titulo="Resetear contraseña" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-sm text-gray-600">
-          Se asignara una nueva contrasena a{' '}
-          <strong>{usuario.nombre} {usuario.apellidos}</strong>. El usuario debera iniciar sesion nuevamente.
+          Se asignará una nueva contraseña a{' '}
+          <strong>{usuario.nombre} {usuario.apellidos}</strong>. El usuario deberá iniciar sesión nuevamente.
         </p>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Nueva contrasena <span className="text-red-500">*</span>
+            Nueva contraseña <span className="text-red-500">*</span>
           </label>
           <input
             type="password"
@@ -388,7 +419,7 @@ function ModalResetPassword({
             value={contrasena}
             onChange={(e) => setContrasena(e.target.value)}
           />
-          <p className="text-xs text-gray-400 mt-1">Minimo 8 caracteres</p>
+          <p className="text-xs text-gray-400 mt-1">Mínimo 8 caracteres</p>
         </div>
         {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
         <div className="flex justify-end gap-2 pt-1">
@@ -412,10 +443,75 @@ function ModalResetPassword({
   )
 }
 
-// -------------------------------------------------------
-// Pagina principal
-// -------------------------------------------------------
+function ModalEliminarUsuario({
+  usuario,
+  esAutoBorrado,
+  onGuardado,
+  onClose,
+}: {
+  usuario: UsuarioCompleto
+  esAutoBorrado: boolean
+  onGuardado: () => void
+  onClose: () => void
+}) {
+  const [borrando, setBorrando] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  async function handleEliminar() {
+    setBorrando(true)
+    setErrorMsg(null)
+    try {
+      await usuariosService.eliminar(usuario._id)
+      onGuardado()
+    } catch (err) {
+      setErrorMsg(mensajeDeError(err))
+    } finally {
+      setBorrando(false)
+    }
+  }
+
+  return (
+    <Modal titulo="Borrar usuario" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="text-sm text-gray-700">
+          <p>
+            ¿Está de acuerdo en borrar definitivamente a{' '}
+            <strong>{usuario.nombre} {usuario.apellidos}</strong>?
+          </p>
+          <p className="text-red-700 mt-2">
+            Esta acción es irreversible.
+          </p>
+          {esAutoBorrado && (
+            <p className="text-red-700 mt-2">
+              Está a punto de borrar su propia cuenta. Puede perder acceso inmediatamente.
+            </p>
+          )}
+        </div>
+        {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={borrando}
+            onClick={handleEliminar}
+            className="px-4 py-2 text-sm rounded-md bg-red-700 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+          >
+            {borrando ? 'Borrando...' : 'Sí, borrar'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 export function Usuarios() {
+  const { usuario, tieneRol } = useAuth()
   const [usuarios, setUsuarios] = useState<UsuarioCompleto[]>([])
   const [dgs, setDgs] = useState<DireccionGeneral[]>([])
   const [cargando, setCargando] = useState(true)
@@ -431,6 +527,13 @@ export function Usuarios() {
   const [modalCrear, setModalCrear] = useState(false)
   const [modalEditar, setModalEditar] = useState<UsuarioCompleto | null>(null)
   const [modalReset, setModalReset] = useState<UsuarioCompleto | null>(null)
+  const [modalEliminar, setModalEliminar] = useState<UsuarioCompleto | null>(null)
+
+  const esAdministrador = tieneRol('administrador')
+  const esLecturaGlobal = tieneRol('oficialia_mayor', 'dir_gral_admon')
+  const esIntegrante = tieneRol('integrante_adquisiciones')
+  const organismoFijo = esIntegrante ? (usuario?.direccionGeneral ?? '') : ''
+  const rolesDisponibles: Rol[] = esAdministrador ? ROLES_VALIDOS : ['asesor_tecnico']
 
   const cargar = useCallback(() => {
     setCargando(true)
@@ -441,19 +544,30 @@ export function Usuarios() {
         ...(filtroRol ? { rol: filtroRol as Rol } : {}),
         ...(filtroActivo !== '' ? { activo: filtroActivo === 'true' } : {}),
         ...(busqueda ? { q: busqueda } : {}),
+        ...(organismoFijo ? { dgId: organismoFijo } : {}),
       })
-      .then(({ usuarios: u, pagination }) => {
-        setUsuarios(u)
+      .then(({ usuarios: lista, pagination }) => {
+        setUsuarios(lista)
         setPaginacion(pagination)
       })
       .catch((err) => setErrorMsg(mensajeDeError(err)))
       .finally(() => setCargando(false))
-  }, [pagina, filtroRol, filtroActivo, busqueda])
+  }, [pagina, filtroRol, filtroActivo, busqueda, organismoFijo])
 
   useEffect(() => { cargar() }, [cargar])
+
   useEffect(() => {
-    catalogosService.listarDGs(false).then(setDgs).catch(() => {})
-  }, [])
+    catalogosService
+      .listarDGs(false)
+      .then((lista) => {
+        if (organismoFijo) {
+          setDgs(lista.filter((dg) => dg._id === organismoFijo))
+          return
+        }
+        setDgs(lista)
+      })
+      .catch(() => {})
+  }, [organismoFijo])
 
   function handleBuscar(e: React.FormEvent) {
     e.preventDefault()
@@ -461,20 +575,35 @@ export function Usuarios() {
     setBusqueda(filtroQ)
   }
 
+  function puedeGestionarUsuario(usuarioFila: UsuarioCompleto) {
+    if (esAdministrador) return true
+    if (!esIntegrante) return false
+    return usuarioFila.rol === 'asesor_tecnico'
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Usuarios</h1>
-        <button
-          type="button"
-          onClick={() => setModalCrear(true)}
-          className="px-4 py-2 text-sm rounded-md bg-blue-900 text-white hover:bg-blue-800 transition-colors"
-        >
-          Nuevo usuario
-        </button>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Usuarios</h1>
+          {esLecturaGlobal && (
+            <p className="text-sm text-gray-500 mt-1">Vista de solo consulta para todos los organismos.</p>
+          )}
+          {esIntegrante && (
+            <p className="text-sm text-gray-500 mt-1">Puede administrar únicamente asesores técnicos de su organismo.</p>
+          )}
+        </div>
+        {(esAdministrador || esIntegrante) && (
+          <button
+            type="button"
+            onClick={() => setModalCrear(true)}
+            className="px-4 py-2 text-sm rounded-md bg-blue-900 text-white hover:bg-blue-800 transition-colors"
+          >
+            Nuevo usuario
+          </button>
+        )}
       </div>
 
-      {/* Filtros */}
       <div className="bg-white rounded-lg border border-gray-200 px-4 py-3 mb-4">
         <form onSubmit={handleBuscar} className="flex flex-wrap gap-3 items-end">
           <div>
@@ -485,8 +614,8 @@ export function Usuarios() {
               onChange={(e) => { setFiltroRol(e.target.value); setPagina(1) }}
             >
               <option value="">Todos</option>
-              {ROLES_VALIDOS.map((r) => (
-                <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>
+              {ROLES_VALIDOS.map((rol) => (
+                <option key={rol} value={rol}>{ETIQUETA_ROL[rol]}</option>
               ))}
             </select>
           </div>
@@ -545,68 +674,85 @@ export function Usuarios() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Rol</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Organismo</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Estado</th>
-                    <th className="px-4 py-3" />
+                    {(esAdministrador || esIntegrante) && <th className="px-4 py-3" />}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {usuarios.map((u) => (
-                  <tr key={u._id} className="hover:bg-gray-50 transition-colors">
+                  {usuarios.map((usuarioFila) => (
+                    <tr key={usuarioFila._id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-medium text-gray-800">
-                        {u.nombre} {u.apellidos}
+                        {usuarioFila.nombre} {usuarioFila.apellidos}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{u.correo}</td>
+                      <td className="px-4 py-3 text-gray-500">{usuarioFila.correo}</td>
                       <td className="px-4 py-3">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${ROL_COLOR[u.rol]}`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${ROL_COLOR[usuarioFila.rol]}`}
                         >
-                          {ETIQUETA_ROL[u.rol]}
+                          {ETIQUETA_ROL[usuarioFila.rol]}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {u.direccionGeneral
-                          ? (u.direccionGeneral as unknown as DireccionGeneral)?.siglas ?? u.direccionGeneral
+                        {usuarioFila.direccionGeneral
+                          ? ((usuarioFila.direccionGeneral as unknown as DireccionGeneral)?.siglas ?? usuarioFila.direccionGeneral)
                           : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            u.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                            usuarioFila.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
                           }`}
                         >
-                          {u.activo ? 'Activo' : 'Inactivo'}
+                          {usuarioFila.activo ? 'Activo' : 'Inactivo'}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 justify-end">
-                          <button
-                            type="button"
-                            onClick={() => setModalEditar(u)}
-                            className="text-xs text-blue-700 hover:underline"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setModalReset(u)}
-                            className="text-xs text-orange-600 hover:underline"
-                          >
-                            Reset pwd
-                          </button>
-                        </div>
-                      </td>
+                      {(esAdministrador || esIntegrante) && (
+                        <td className="px-4 py-3">
+                          {puedeGestionarUsuario(usuarioFila) ? (
+                            <div className="flex items-center gap-2 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setModalEditar(usuarioFila)}
+                                className="text-xs text-blue-700 hover:underline"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setModalReset(usuarioFila)}
+                                className="text-xs text-orange-600 hover:underline"
+                              >
+                                Reset pwd
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setModalEliminar(usuarioFila)}
+                                className="text-xs text-red-700 hover:underline"
+                              >
+                                Borrar
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
           </div>
-          {paginacion && paginacion.totalPaginas > 1 && <Paginacion paginacion={paginacion} onChange={setPagina} />}
+          {paginacion && paginacion.totalPaginas > 1 && (
+            <Paginacion paginacion={paginacion} onChange={setPagina} />
+          )}
         </>
       )}
 
       {modalCrear && (
         <ModalCrearUsuario
           dgs={dgs}
+          rolesDisponibles={rolesDisponibles}
+          organismoFijo={organismoFijo || undefined}
           onGuardado={() => { setModalCrear(false); cargar() }}
           onClose={() => setModalCrear(false)}
         />
@@ -615,6 +761,8 @@ export function Usuarios() {
         <ModalEditarUsuario
           usuario={modalEditar}
           dgs={dgs}
+          rolesDisponibles={rolesDisponibles}
+          organismoFijo={organismoFijo || undefined}
           onGuardado={() => { setModalEditar(null); cargar() }}
           onClose={() => setModalEditar(null)}
         />
@@ -624,6 +772,14 @@ export function Usuarios() {
           usuario={modalReset}
           onGuardado={() => { setModalReset(null) }}
           onClose={() => setModalReset(null)}
+        />
+      )}
+      {modalEliminar && (
+        <ModalEliminarUsuario
+          usuario={modalEliminar}
+          esAutoBorrado={Boolean(usuario && modalEliminar._id === usuario._id)}
+          onGuardado={() => { setModalEliminar(null); cargar() }}
+          onClose={() => setModalEliminar(null)}
         />
       )}
     </div>

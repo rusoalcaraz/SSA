@@ -407,9 +407,11 @@ export function Dashboard() {
                         {proc.direccionGeneral && (
                           <span>{proc.direccionGeneral.siglas}</span>
                         )}
-                        {proc.asesorTitular && (
-                          <span>{proc.asesorTitular.nombre} {proc.asesorTitular.apellidos}</span>
-                        )}
+                        <span>
+                          {proc.asesorTitular
+                            ? `${proc.asesorTitular.nombre} ${proc.asesorTitular.apellidos}`
+                            : 'pendiente por designar'}
+                        </span>
                       </div>
                       {proc.etapasRelevantes && proc.etapasRelevantes.length > 0 && (
                         <div className="mt-2 space-y-0.5">
