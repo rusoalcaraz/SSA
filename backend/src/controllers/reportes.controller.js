@@ -5,12 +5,20 @@ const { generarPDF, generarExcel } = require('../services/reportes.service');
 function construirConsultaSegura(query, usuario) {
   const consulta = { ...query };
 
-  if (usuario.rol === 'integrante_adquisiciones') {
-    if (!usuario.dgId) {
+  if (usuario.rol === 'subdirector') {
+    if (!usuario.subdireccionId) {
       const { crearError } = require('../middleware/errorHandler');
-      throw crearError(400, 'ORGANISMO_NO_ASIGNADO', 'El usuario no tiene organismo asignado');
+      throw crearError(400, 'SUBDIRECCION_NO_ASIGNADA', 'El usuario no tiene subdireccion asignada');
     }
-    consulta.dgId = usuario.dgId;
+    consulta.subdireccionId = usuario.subdireccionId;
+  }
+
+  if (usuario.rol === 'jefe_seccion') {
+    if (!usuario.seccionId) {
+      const { crearError } = require('../middleware/errorHandler');
+      throw crearError(400, 'SECCION_NO_ASIGNADA', 'El usuario no tiene seccion asignada');
+    }
+    consulta.seccionId = usuario.seccionId;
   }
 
   return consulta;

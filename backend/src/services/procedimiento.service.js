@@ -5,7 +5,7 @@ const { DireccionGeneral } = require('../models/direccionGeneral.model');
 const { CatalogoEtapas } = require('../models/catalogoEtapas.model');
 const { crearError } = require('../middleware/errorHandler');
 
-const ROLES_LECTURA_GLOBAL = ['administrador', 'oficialia_mayor', 'dir_gral_admon'];
+const ROLES_LECTURA_GLOBAL = ['administrador', 'adquisiciones'];
 
 function obtenerId(valor) {
   if (!valor) return null;
@@ -17,11 +17,19 @@ function obtenerId(valor) {
   return String(valor);
 }
 
-function perteneceAlMismoOrganismo(procedimiento, organismoId) {
+function perteneceAMiSubdireccion(procedimiento, subdireccionId) {
   return Boolean(
-    organismoId &&
-    procedimiento?.direccionGeneral &&
-    obtenerId(procedimiento.direccionGeneral) === String(organismoId)
+    subdireccionId &&
+    procedimiento?.subdireccion &&
+    obtenerId(procedimiento.subdireccion) === String(subdireccionId)
+  );
+}
+
+function perteneceAMiSeccion(procedimiento, seccionId) {
+  return Boolean(
+    seccionId &&
+    procedimiento?.seccion &&
+    obtenerId(procedimiento.seccion) === String(seccionId)
   );
 }
 
@@ -57,12 +65,14 @@ async function generarNumeroProcedimiento(direccionGeneralId, anioFiscal) {
 function filtroByRol(usuario) {
   switch (usuario.rol) {
     case 'administrador':
-    case 'oficialia_mayor':
-    case 'dir_gral_admon':
+    case 'adquisiciones':
       return {};
 
-    case 'integrante_adquisiciones':
-      return usuario.dgId ? { direccionGeneral: usuario.dgId } : null;
+    case 'subdirector':
+      return usuario.subdireccionId ? { subdireccion: usuario.subdireccionId } : null;
+
+    case 'jefe_seccion':
+      return usuario.seccionId ? { seccion: usuario.seccionId } : null;
 
     case 'asesor_tecnico':
       return {
@@ -89,8 +99,11 @@ function esMiProcedimiento(procedimiento, usuarioId) {
 
 function puedeVerProcedimiento(procedimiento, usuario) {
   if (ROLES_LECTURA_GLOBAL.includes(usuario.rol)) return true;
-  if (usuario.rol === 'integrante_adquisiciones') {
-    return perteneceAlMismoOrganismo(procedimiento, usuario.dgId);
+  if (usuario.rol === 'subdirector') {
+    return perteneceAMiSubdireccion(procedimiento, usuario.subdireccionId);
+  }
+  if (usuario.rol === 'jefe_seccion') {
+    return perteneceAMiSeccion(procedimiento, usuario.seccionId);
   }
   if (usuario.rol === 'asesor_tecnico') {
     return esMiProcedimiento(procedimiento, usuario.id);
@@ -100,8 +113,9 @@ function puedeVerProcedimiento(procedimiento, usuario) {
 
 function puedeGestionarProcedimiento(procedimiento, usuario) {
   if (usuario.rol === 'administrador') return true;
-  if (usuario.rol === 'integrante_adquisiciones') {
-    return perteneceAlMismoOrganismo(procedimiento, usuario.dgId);
+  if (usuario.rol === 'adquisiciones') return true;
+  if (usuario.rol === 'subdirector') {
+    return perteneceAMiSubdireccion(procedimiento, usuario.subdireccionId);
   }
   return false;
 }
@@ -150,7 +164,8 @@ module.exports = {
   generarNumeroProcedimiento,
   filtroByRol,
   esMiProcedimiento,
-  perteneceAlMismoOrganismo,
+  perteneceAMiSubdireccion,
+  perteneceAMiSeccion,
   puedeVerProcedimiento,
   puedeGestionarProcedimiento,
   inicializarEtapas,

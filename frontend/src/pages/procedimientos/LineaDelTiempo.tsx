@@ -311,7 +311,7 @@ function TarjetaProcedimiento({ procedimiento }: { procedimiento: Procedimiento 
 }
 
 export function LineaDelTiempo() {
-  const { tieneRol, usuario } = useAuth()
+  const { tieneRol } = useAuth()
   const [procedimientos, setProcedimientos] = useState<Procedimiento[]>([])
   const [paginacion, setPaginacion] = useState<PaginacionTipo | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -322,10 +322,10 @@ export function LineaDelTiempo() {
   const [dgId, setDgId] = useState('')
   const [tipoProcedimiento, setTipoProcedimiento] = useState<string>('')
   const [q, setQ] = useState('')
-  const [asesorTitularQ, setAsesorTitularQ] = useState('')
 
-  const esIntegrante = tieneRol('integrante_adquisiciones')
-  const esGlobal = tieneRol('administrador', 'oficialia_mayor', 'dir_gral_admon')
+  const esSubdirector = tieneRol('subdirector')
+  const esJefe = tieneRol('jefe_seccion')
+  const esGlobal = tieneRol('administrador', 'adquisiciones')
   const esAsesor = tieneRol('asesor_tecnico')
 
   useEffect(() => {
@@ -352,7 +352,6 @@ export function LineaDelTiempo() {
         ...(q ? { q } : {}),
         ...(tipoProcedimiento ? { tipoProcedimiento: tipoProcedimiento as TipoProcedimiento } : {}),
         ...(esGlobal && dgId ? { dgId } : {}),
-        ...(esIntegrante && asesorTitularQ ? { asesorTitularQ } : {}),
       })
       .then(({ procedimientos: lista, pagination }) => {
         setProcedimientos(lista)
@@ -360,7 +359,7 @@ export function LineaDelTiempo() {
       })
       .catch((err) => setError(mensajeDeError(err)))
       .finally(() => setCargando(false))
-  }, [pagina, anioFiscal, q, tipoProcedimiento, dgId, asesorTitularQ, esGlobal, esIntegrante])
+  }, [pagina, anioFiscal, q, tipoProcedimiento, dgId, esGlobal])
 
   const anioActual = new Date().getFullYear()
   const aniosOpciones = Array.from({ length: 5 }, (_, index) => anioActual - index)
@@ -374,8 +373,10 @@ export function LineaDelTiempo() {
             <p className="mt-1 max-w-3xl text-sm text-blue-100">
               {esAsesor
                 ? 'Vista grafica del avance de todos los procedimientos en los que participa como asesor tecnico.'
-                : esIntegrante
-                  ? 'Vista grafica del avance de los procedimientos del organismo al que pertenece.'
+                : esSubdirector
+                  ? 'Vista grafica del avance de los procedimientos de tu subdirección.'
+                  : esJefe
+                    ? 'Vista grafica del avance de los procedimientos de tu sección.'
                   : 'Vista grafica del avance de procedimientos con filtros de consulta.'}
             </p>
           </div>
@@ -459,20 +460,6 @@ export function LineaDelTiempo() {
               </select>
             </div>
 
-            {esIntegrante && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">Asesor titular</label>
-                <input
-                  value={asesorTitularQ}
-                  onChange={(event) => {
-                    setPagina(1)
-                    setAsesorTitularQ(event.target.value)
-                  }}
-                  placeholder="Nombre, apellidos o correo..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
-                />
-              </div>
-            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -483,16 +470,12 @@ export function LineaDelTiempo() {
                 setAnioFiscal('')
                 setQ('')
                 setTipoProcedimiento('')
-                setAsesorTitularQ('')
                 if (esGlobal) setDgId('')
               }}
               className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
             >
               Limpiar
             </button>
-            <div className="text-xs text-slate-400">
-              {usuario?.direccionGeneral && esIntegrante ? 'Organismo fijo por perfil' : ''}
-            </div>
           </div>
         </div>
       </div>

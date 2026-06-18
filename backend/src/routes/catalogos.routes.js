@@ -5,6 +5,8 @@ const { verifyToken, checkRole, actualizarActividad } = require('../middleware/a
 const { limitarPorUsuario } = require('../middleware/rateLimiters');
 
 const dgCtrl = require('../controllers/catalogos/direccionesGenerales.controller');
+const subCtrl = require('../controllers/catalogos/subdirecciones.controller');
+const secCtrl = require('../controllers/catalogos/secciones.controller');
 const bsCtrl = require('../controllers/catalogos/bienesServicios.controller');
 const etapasCtrl = require('../controllers/catalogos/etapas.controller');
 
@@ -21,9 +23,9 @@ router
   .get(
     checkRole([
       'administrador',
-      'oficialia_mayor',
-      'dir_gral_admon',
-      'integrante_adquisiciones',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
       'asesor_tecnico',
     ]),
     dgCtrl.listar
@@ -35,15 +37,79 @@ router
   .get(
     checkRole([
       'administrador',
-      'oficialia_mayor',
-      'dir_gral_admon',
-      'integrante_adquisiciones',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
       'asesor_tecnico',
     ]),
     dgCtrl.obtener
   )
   .put(checkRole(['administrador']), dgCtrl.actualizar)
   .delete(checkRole(['administrador']), dgCtrl.desactivar);
+
+// -------------------------------------------------------
+// Subdirecciones — /api/v1/catalogos/subdirecciones
+// -------------------------------------------------------
+router
+  .route('/subdirecciones')
+  .get(
+    checkRole([
+      'administrador',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
+      'asesor_tecnico',
+    ]),
+    subCtrl.listar
+  )
+  .post(checkRole(['administrador']), subCtrl.crear);
+
+router
+  .route('/subdirecciones/:id')
+  .get(
+    checkRole([
+      'administrador',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
+      'asesor_tecnico',
+    ]),
+    subCtrl.obtener
+  )
+  .put(checkRole(['administrador']), subCtrl.actualizar)
+  .delete(checkRole(['administrador']), subCtrl.desactivar);
+
+// -------------------------------------------------------
+// Secciones — /api/v1/catalogos/secciones
+// -------------------------------------------------------
+router
+  .route('/secciones')
+  .get(
+    checkRole([
+      'administrador',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
+      'asesor_tecnico',
+    ]),
+    secCtrl.listar
+  )
+  .post(checkRole(['administrador', 'subdirector']), secCtrl.crear);
+
+router
+  .route('/secciones/:id')
+  .get(
+    checkRole([
+      'administrador',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
+      'asesor_tecnico',
+    ]),
+    secCtrl.obtener
+  )
+  .put(checkRole(['administrador', 'subdirector']), secCtrl.actualizar)
+  .delete(checkRole(['administrador', 'subdirector']), secCtrl.desactivar);
 
 // -------------------------------------------------------
 // Bienes y Servicios — /api/v1/catalogos/bienes-servicios
@@ -53,9 +119,10 @@ router
   .get(
     checkRole([
       'administrador',
-      'oficialia_mayor',
-      'dir_gral_admon',
-      'integrante_adquisiciones',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
+      'asesor_tecnico',
     ]),
     bsCtrl.listar
   )
@@ -66,9 +133,10 @@ router
   .get(
     checkRole([
       'administrador',
-      'oficialia_mayor',
-      'dir_gral_admon',
-      'integrante_adquisiciones',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
+      'asesor_tecnico',
     ]),
     bsCtrl.obtener
   )
@@ -83,9 +151,9 @@ router
   .get(
     checkRole([
       'administrador',
-      'oficialia_mayor',
-      'dir_gral_admon',
-      'integrante_adquisiciones',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
       'asesor_tecnico',
     ]),
     etapasCtrl.listar
@@ -97,9 +165,9 @@ router
   .get(
     checkRole([
       'administrador',
-      'oficialia_mayor',
-      'dir_gral_admon',
-      'integrante_adquisiciones',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
       'asesor_tecnico',
     ]),
     etapasCtrl.obtener

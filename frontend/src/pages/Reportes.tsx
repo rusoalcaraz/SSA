@@ -17,8 +17,8 @@ const TIPOS: TipoProcedimiento[] = [
 ]
 
 export function Reportes() {
-  const { usuario, tieneRol } = useAuth()
-  const esIntegrante = tieneRol('integrante_adquisiciones')
+  const { tieneRol } = useAuth()
+  const esGlobal = tieneRol('administrador', 'adquisiciones')
   const [dgs, setDgs] = useState<DireccionGeneral[]>([])
 
   const [anioFiscal, setAnioFiscal] = useState('')
@@ -32,19 +32,16 @@ export function Reportes() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!esGlobal) {
+      setDgs([])
+      setDgId('')
+      return
+    }
     catalogosService
       .listarDGs()
-      .then((lista) => {
-        if (esIntegrante && usuario?.direccionGeneral) {
-          const propias = lista.filter((dg) => dg._id === usuario.direccionGeneral)
-          setDgs(propias)
-          setDgId(usuario.direccionGeneral)
-          return
-        }
-        setDgs(lista)
-      })
+      .then(setDgs)
       .catch(() => {})
-  }, [esIntegrante, usuario?.direccionGeneral])
+  }, [esGlobal])
 
   function buildFiltros(): FiltroReporte {
     return {
@@ -100,12 +97,6 @@ export function Reportes() {
       <p className="text-sm text-gray-500 mb-6">
         Aplica filtros opcionales y descarga el reporte en el formato deseado.
       </p>
-      {esIntegrante && (
-        <p className="text-sm text-gray-500 mb-6 -mt-4">
-          Los reportes se limitan automáticamente a su organismo.
-        </p>
-      )}
-
       <div className="bg-white rounded-lg border border-gray-200 px-6 py-5 mb-5">
         <h2 className="text-sm font-semibold text-gray-700 mb-4">Filtros</h2>
 
@@ -130,13 +121,13 @@ export function Reportes() {
           {/* Organismo */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">
-              Organismo
+              Dirección General
             </label>
             <select
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
               value={dgId}
               onChange={(e) => setDgId(e.target.value)}
-              disabled={esIntegrante}
+              disabled={!esGlobal}
             >
               <option value="">Todas</option>
               {dgs.map((dg) => (

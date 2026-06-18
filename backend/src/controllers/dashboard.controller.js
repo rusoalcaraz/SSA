@@ -147,15 +147,16 @@ function construirFiltroDashboard(usuario, anioFiscal) {
 
   if (anioFiscal) filtro.anioFiscal = Number(anioFiscal);
 
-  if (usuario?.rol === 'integrante_adquisiciones') {
-    if (!usuario.dgId) {
-      throw crearError(400, 'DG_NO_ASIGNADA', 'El usuario no tiene organismo asignado');
-    }
-    const dgObjectId = toObjectId(usuario.dgId);
-    if (!dgObjectId) {
-      throw crearError(400, 'DG_NO_ASIGNADA', 'El usuario no tiene organismo asignado');
-    }
-    filtro.direccionGeneral = dgObjectId;
+  if (usuario?.rol === 'subdirector') {
+    const subId = toObjectId(usuario.subdireccionId);
+    if (!subId) throw crearError(400, 'SUBDIRECCION_NO_ASIGNADA', 'El usuario no tiene subdireccion asignada');
+    filtro.subdireccion = subId;
+  }
+
+  if (usuario?.rol === 'jefe_seccion') {
+    const secId = toObjectId(usuario.seccionId);
+    if (!secId) throw crearError(400, 'SECCION_NO_ASIGNADA', 'El usuario no tiene seccion asignada');
+    filtro.seccion = secId;
   }
 
   return filtro;
@@ -217,28 +218,43 @@ async function porDG(req, res, next) {
 // -------------------------------------------------------
 async function misProcedimientos(req, res, next) {
   try {
-    const { rol, id: usuarioId, dgId } = req.usuario;
-    const { etapaActual, urgente, anioFiscal, q, tipoProcedimiento, dgId: dgIdQuery, asesorTitularQ } = req.query;
+    const { rol, id: usuarioId, subdireccionId, seccionId } = req.usuario;
+    const { etapaActual, urgente, anioFiscal, q, tipoProcedimiento, dgId: dgIdQuery, subdireccionId: subIdQuery, seccionId: secIdQuery } = req.query;
 
     // Filtro base segun rol
     let filtroBase = {};
     if (rol === 'asesor_tecnico') {
       filtroBase = { $or: [{ asesorTitular: usuarioId }, { asesorSuplente: usuarioId }] };
-    } else if (rol === 'integrante_adquisiciones') {
-      if (!dgId) throw crearError(400, 'DG_NO_ASIGNADA', 'El usuario no tiene organismo asignado');
-      const dgObjectId = toObjectId(dgId);
-      if (!dgObjectId) throw crearError(400, 'DG_NO_ASIGNADA', 'El usuario no tiene organismo asignado');
-      filtroBase = { direccionGeneral: dgObjectId };
+    } else if (rol === 'subdirector') {
+      const subId = toObjectId(subdireccionId);
+      if (!subId) throw crearError(400, 'SUBDIRECCION_NO_ASIGNADA', 'El usuario no tiene subdireccion asignada');
+      filtroBase = { subdireccion: subId };
+    } else if (rol === 'jefe_seccion') {
+      const secId = toObjectId(seccionId);
+      if (!secId) throw crearError(400, 'SECCION_NO_ASIGNADA', 'El usuario no tiene seccion asignada');
+      filtroBase = { seccion: secId };
     }
     // administrador ve todos — filtroBase vacio
 
-    if (rol !== 'integrante_adquisiciones' && dgIdQuery) {
-      if (!['administrador', 'oficialia_mayor', 'dir_gral_admon'].includes(rol)) {
-        throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permiso para filtrar por organismo');
-      }
+    if (dgIdQuery) {
+      if (!['administrador', 'adquisiciones'].includes(rol)) throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permiso para filtrar por organismo');
       const dgObjectId = toObjectId(dgIdQuery);
       if (!dgObjectId) throw crearError(400, 'DG_NO_VALIDA', 'Organismo no valido');
       filtroBase.direccionGeneral = dgObjectId;
+    }
+
+    if (subIdQuery) {
+      if (!['administrador', 'adquisiciones'].includes(rol)) throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permiso para filtrar por subdireccion');
+      const subObjectId = toObjectId(subIdQuery);
+      if (!subObjectId) throw crearError(400, 'SUBDIRECCION_NO_VALIDA', 'Subdireccion no valida');
+      filtroBase.subdireccion = subObjectId;
+    }
+
+    if (secIdQuery) {
+      if (!['administrador', 'adquisiciones'].includes(rol)) throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permiso para filtrar por seccion');
+      const secObjectId = toObjectId(secIdQuery);
+      if (!secObjectId) throw crearError(400, 'SECCION_NO_VALIDA', 'Seccion no valida');
+      filtroBase.seccion = secObjectId;
     }
 
     if (etapaActual) filtroBase.etapaActual = etapaActual;
@@ -260,20 +276,6 @@ async function misProcedimientos(req, res, next) {
       }
     }
 
-    if (rol === 'integrante_adquisiciones' && asesorTitularQ) {
-      const qEscapado = escaparRegex(String(asesorTitularQ).slice(0, 100));
-      const asesores = await Usuario.find({
-        rol: 'asesor_tecnico',
-        direccionGeneral: filtroBase.direccionGeneral,
-        $or: [
-          { nombre: { $regex: qEscapado, $options: 'i' } },
-          { apellidos: { $regex: qEscapado, $options: 'i' } },
-          { correo: { $regex: qEscapado, $options: 'i' } },
-        ],
-      }).select('_id');
-      filtroBase.asesorTitular = { $in: asesores.map((a) => a._id) };
-    }
-
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
     const skip = (page - 1) * limit;
@@ -285,6 +287,8 @@ async function misProcedimientos(req, res, next) {
       Procedimiento.find(filtroBase)
         .populate('bienServicio', 'clave descripcion')
         .populate('direccionGeneral', 'nombre siglas')
+        .populate('subdireccion', 'nombre')
+        .populate('seccion', 'nombre subdireccion')
         .populate('asesorTitular', 'nombre apellidos')
         .populate('asesorSuplente', 'nombre apellidos')
         .select('-evidenciaJustificacion -contrato')

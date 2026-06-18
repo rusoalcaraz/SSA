@@ -10,9 +10,9 @@ const THROTTLE_MS = 60_000; // escribe en BD como maximo una vez por minuto por 
 
 const ROLES_VALIDOS = [
   'administrador',
-  'oficialia_mayor',
-  'dir_gral_admon',
-  'integrante_adquisiciones',
+  'adquisiciones',
+  'subdirector',
+  'jefe_seccion',
   'asesor_tecnico',
 ];
 

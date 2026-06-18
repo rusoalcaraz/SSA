@@ -17,6 +17,8 @@ export interface FiltroProcedimientos {
   etapaActual?: EtapaActual
   tipoProcedimiento?: TipoProcedimiento
   dgId?: string
+  subdireccionId?: string
+  seccionId?: string
 }
 
 export interface ListaProcedimientosResponse {
@@ -35,6 +37,8 @@ async function listar(
   if (filtros.etapaActual) params.etapaActual = filtros.etapaActual
   if (filtros.tipoProcedimiento) params.tipoProcedimiento = filtros.tipoProcedimiento
   if (filtros.dgId) params.dgId = filtros.dgId
+  if (filtros.subdireccionId) params.subdireccionId = filtros.subdireccionId
+  if (filtros.seccionId) params.seccionId = filtros.seccionId
 
   const { data } = await api.get<ApiResponse<Procedimiento[]> & { pagination: Paginacion }>(
     '/procedimientos',
@@ -57,6 +61,7 @@ export interface CrearProcedimientoPayload {
   montoEstimado?: number
   moneda?: string
   direccionGeneral: string
+  seccion: string
   asesorTitular: string
   asesorSuplente?: string
   tipoProcedimiento: TipoProcedimiento

@@ -3,9 +3,9 @@
 // -------------------------------------------------------
 export type Rol =
   | 'administrador'
-  | 'oficialia_mayor'
-  | 'dir_gral_admon'
-  | 'integrante_adquisiciones'
+  | 'adquisiciones'
+  | 'subdirector'
+  | 'jefe_seccion'
   | 'asesor_tecnico'
 
 // -------------------------------------------------------
@@ -17,7 +17,9 @@ export interface UsuarioResumen {
   apellidos: string
   correo: string
   rol: Rol
-  direccionGeneral: string | null
+  direccionGeneral?: DireccionGeneral | string | null
+  subdireccion?: Subdireccion | string | null
+  seccion?: Seccion | string | null
 }
 
 export type TipoOrganismo =
@@ -32,6 +34,19 @@ export interface DireccionGeneral {
   siglas: string
   descripcion?: string
   tipo?: TipoOrganismo
+  activa: boolean
+}
+
+export interface Subdireccion {
+  _id: string
+  nombre: string
+  activa: boolean
+}
+
+export interface Seccion {
+  _id: string
+  nombre: string
+  subdireccion: Subdireccion
   activa: boolean
 }
 
@@ -210,6 +225,8 @@ export interface Procedimiento {
   montoEstimado?: number
   moneda: string
   direccionGeneral: DireccionGeneral
+  subdireccion: Subdireccion
+  seccion: Seccion
   asesorTitular?: UsuarioResumen | null
   asesorSuplente?: UsuarioResumen
   tipoProcedimiento: TipoProcedimiento

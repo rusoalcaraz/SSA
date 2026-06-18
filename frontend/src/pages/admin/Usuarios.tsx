@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { Rol, DireccionGeneral, Paginacion as PaginacionTipo } from '../../types'
+import type { Rol, DireccionGeneral, Subdireccion, Seccion, Paginacion as PaginacionTipo } from '../../types'
 import {
   usuariosService,
   type UsuarioCompleto,
@@ -15,30 +15,30 @@ import { useAuth } from '../../hooks/useAuth'
 
 const ROLES_VALIDOS: Rol[] = [
   'administrador',
-  'oficialia_mayor',
-  'dir_gral_admon',
-  'integrante_adquisiciones',
+  'adquisiciones',
+  'subdirector',
+  'jefe_seccion',
   'asesor_tecnico',
 ]
 
 const ETIQUETA_ROL: Record<Rol, string> = {
   administrador: 'Administrador',
-  oficialia_mayor: 'Oficialía Mayor',
-  dir_gral_admon: 'Dir. Gral. Admón.',
-  integrante_adquisiciones: 'Integrante de adquisiciones',
+  adquisiciones: 'Adquisiciones',
+  subdirector: 'Subdirector',
+  jefe_seccion: 'Jefe de sección',
   asesor_tecnico: 'Asesor técnico',
 }
 
 const ROL_COLOR: Record<Rol, string> = {
   administrador: 'bg-red-100 text-red-700',
-  oficialia_mayor: 'bg-purple-100 text-purple-800',
-  dir_gral_admon: 'bg-indigo-100 text-indigo-800',
-  integrante_adquisiciones: 'bg-blue-100 text-blue-800',
+  adquisiciones: 'bg-blue-100 text-blue-800',
+  subdirector: 'bg-purple-100 text-purple-800',
+  jefe_seccion: 'bg-indigo-100 text-indigo-800',
   asesor_tecnico: 'bg-teal-100 text-teal-800',
 }
 
 function rolRequiereOrganismo(rol: Rol) {
-  return rol === 'integrante_adquisiciones' || rol === 'asesor_tecnico'
+  return Boolean(rol && false)
 }
 
 function obtenerIdOrganismo(valor: string | DireccionGeneral | null | undefined) {
@@ -530,22 +530,36 @@ export function Usuarios() {
   const [modalEliminar, setModalEliminar] = useState<UsuarioCompleto | null>(null)
 
   const esAdministrador = tieneRol('administrador')
-  const esLecturaGlobal = tieneRol('oficialia_mayor', 'dir_gral_admon')
-  const esIntegrante = tieneRol('integrante_adquisiciones')
-  const organismoFijo = esIntegrante ? (usuario?.direccionGeneral ?? '') : ''
-  const rolesDisponibles: Rol[] = esAdministrador ? ROLES_VALIDOS : ['asesor_tecnico']
-  const rolesFiltrables: Rol[] = esIntegrante ? ['asesor_tecnico'] : ROLES_VALIDOS
+  const esAdquisiciones = tieneRol('adquisiciones')
+  const esSubdirector = tieneRol('subdirector')
+  const esJefe = tieneRol('jefe_seccion')
+
+  const rolesDisponibles: Rol[] = esAdministrador
+    ? ROLES_VALIDOS
+    : esSubdirector
+      ? ['jefe_seccion', 'asesor_tecnico']
+      : esJefe
+        ? ['asesor_tecnico']
+        : []
+
+  const rolesFiltrables: Rol[] = esAdquisiciones
+    ? ['asesor_tecnico']
+    : esSubdirector
+      ? ['jefe_seccion', 'asesor_tecnico']
+      : esJefe
+        ? ['asesor_tecnico']
+        : ROLES_VALIDOS
 
   const cargar = useCallback(() => {
     setCargando(true)
+    const rolConsulta = esAdquisiciones || esJefe ? 'asesor_tecnico' : filtroRol
     usuariosService
       .listar({
         page: pagina,
         limit: 20,
-        ...((esIntegrante ? 'asesor_tecnico' : filtroRol) ? { rol: (esIntegrante ? 'asesor_tecnico' : filtroRol) as Rol } : {}),
+        ...(rolConsulta ? { rol: rolConsulta as Rol } : {}),
         ...(filtroActivo !== '' ? { activo: filtroActivo === 'true' } : {}),
         ...(busqueda ? { q: busqueda } : {}),
-        ...(organismoFijo ? { dgId: organismoFijo } : {}),
       })
       .then(({ usuarios: lista, pagination }) => {
         setUsuarios(lista)
@@ -553,22 +567,16 @@ export function Usuarios() {
       })
       .catch((err) => setErrorMsg(mensajeDeError(err)))
       .finally(() => setCargando(false))
-  }, [pagina, filtroRol, filtroActivo, busqueda, organismoFijo, esIntegrante])
+  }, [pagina, filtroRol, filtroActivo, busqueda, esAdquisiciones, esJefe])
 
   useEffect(() => { cargar() }, [cargar])
 
   useEffect(() => {
     catalogosService
       .listarDGs(false)
-      .then((lista) => {
-        if (organismoFijo) {
-          setDgs(lista.filter((dg) => dg._id === organismoFijo))
-          return
-        }
-        setDgs(lista)
-      })
+      .then(setDgs)
       .catch(() => {})
-  }, [organismoFijo])
+  }, [])
 
   function handleBuscar(e: React.FormEvent) {
     e.preventDefault()
@@ -578,8 +586,9 @@ export function Usuarios() {
 
   function puedeGestionarUsuario(usuarioFila: UsuarioCompleto) {
     if (esAdministrador) return true
-    if (!esIntegrante) return false
-    return usuarioFila.rol === 'asesor_tecnico'
+    if (esSubdirector) return usuarioFila.rol === 'jefe_seccion' || usuarioFila.rol === 'asesor_tecnico'
+    if (esJefe) return usuarioFila.rol === 'asesor_tecnico'
+    return false
   }
 
   return (
@@ -587,14 +596,11 @@ export function Usuarios() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Usuarios</h1>
-          {esLecturaGlobal && (
-            <p className="text-sm text-gray-500 mt-1">Vista de solo consulta para todos los organismos.</p>
-          )}
-          {esIntegrante && (
-            <p className="text-sm text-gray-500 mt-1">Solo se muestran asesores técnicos del organismo al que pertenece.</p>
+          {esAdquisiciones && (
+            <p className="text-sm text-gray-500 mt-1">Solo consulta: se muestran únicamente asesores técnicos.</p>
           )}
         </div>
-        {(esAdministrador || esIntegrante) && (
+        {(esAdministrador || esSubdirector || esJefe) && rolesDisponibles.length > 0 && (
           <button
             type="button"
             onClick={() => setModalCrear(true)}
@@ -610,12 +616,12 @@ export function Usuarios() {
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Rol</label>
             <select
-              disabled={esIntegrante}
+              disabled={esAdquisiciones || esJefe}
               className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
-              value={esIntegrante ? 'asesor_tecnico' : filtroRol}
+              value={(esAdquisiciones || esJefe) ? 'asesor_tecnico' : filtroRol}
               onChange={(e) => { setFiltroRol(e.target.value); setPagina(1) }}
             >
-              {!esIntegrante && <option value="">Todos</option>}
+              {!(esAdquisiciones || esJefe) && <option value="">Todos</option>}
               {rolesFiltrables.map((rol) => (
                 <option key={rol} value={rol}>{ETIQUETA_ROL[rol]}</option>
               ))}
@@ -674,9 +680,9 @@ export function Usuarios() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Nombre</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Correo</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Rol</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Organismo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Área</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Estado</th>
-                    {(esAdministrador || esIntegrante) && <th className="px-4 py-3" />}
+                    {(esAdministrador || esSubdirector || esJefe) && <th className="px-4 py-3" />}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -694,9 +700,16 @@ export function Usuarios() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {usuarioFila.direccionGeneral
-                          ? ((usuarioFila.direccionGeneral as unknown as DireccionGeneral)?.siglas ?? usuarioFila.direccionGeneral)
-                          : '—'}
+                        {(() => {
+                          const sec = usuarioFila.seccion as unknown as Seccion | string | null | undefined
+                          const sub = usuarioFila.subdireccion as unknown as Subdireccion | string | null | undefined
+                          if (sec && typeof sec !== 'string') {
+                            const subNombre = sec.subdireccion?.nombre ?? ''
+                            return subNombre ? `${subNombre} / ${sec.nombre}` : sec.nombre
+                          }
+                          if (sub && typeof sub !== 'string') return sub.nombre
+                          return '—'
+                        })()}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -707,7 +720,7 @@ export function Usuarios() {
                           {usuarioFila.activo ? 'Activo' : 'Inactivo'}
                         </span>
                       </td>
-                      {(esAdministrador || esIntegrante) && (
+                      {(esAdministrador || esSubdirector || esJefe) && (
                         <td className="px-4 py-3">
                           {puedeGestionarUsuario(usuarioFila) ? (
                             <div className="flex items-center gap-2 justify-end">
@@ -754,7 +767,6 @@ export function Usuarios() {
         <ModalCrearUsuario
           dgs={dgs}
           rolesDisponibles={rolesDisponibles}
-          organismoFijo={organismoFijo || undefined}
           onGuardado={() => { setModalCrear(false); cargar() }}
           onClose={() => setModalCrear(false)}
         />
@@ -764,7 +776,6 @@ export function Usuarios() {
           usuario={modalEditar}
           dgs={dgs}
           rolesDisponibles={rolesDisponibles}
-          organismoFijo={organismoFijo || undefined}
           onGuardado={() => { setModalEditar(null); cargar() }}
           onClose={() => setModalEditar(null)}
         />

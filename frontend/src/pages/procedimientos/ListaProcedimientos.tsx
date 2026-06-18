@@ -62,7 +62,7 @@ export function ListaProcedimientos() {
     setFiltros({ page: 1, limit: 20 })
   }
 
-  const puedeCrear = tieneRol('administrador', 'integrante_adquisiciones')
+  const puedeCrear = tieneRol('administrador', 'adquisiciones', 'subdirector')
 
   return (
     <div>

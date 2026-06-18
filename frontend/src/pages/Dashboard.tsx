@@ -306,7 +306,9 @@ export function Dashboard() {
 
   const anioActual = new Date().getFullYear()
   const aniosOpciones = Array.from({ length: 5 }, (_, i) => anioActual - i)
-  const esIntegrante = tieneRol('integrante_adquisiciones')
+  const esSubdirector = tieneRol('subdirector')
+  const esJefe = tieneRol('jefe_seccion')
+  const esGlobal = tieneRol('administrador', 'adquisiciones')
 
   // Datos gráfica donut — etapas
   const datosEtapa: DonutSlice[] = resumen
@@ -344,12 +346,14 @@ export function Dashboard() {
       >
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-tight">
-            {esIntegrante ? 'Dashboard del Organismo' : 'Resumen Ejecutivo'}
+            {esSubdirector ? 'Dashboard de Subdirección' : esJefe ? 'Dashboard de Sección' : 'Resumen Ejecutivo'}
           </h1>
           <p className="text-blue-300 text-sm mt-0.5">
-            {esIntegrante
-              ? 'Resumen de procedimientos y alertas del organismo asignado'
-              : 'Sistema de Seguimiento de Adquisiciones'}
+            {esSubdirector
+              ? 'Resumen de procedimientos y alertas de tu subdirección'
+              : esJefe
+                ? 'Resumen de procedimientos y alertas de tu sección'
+                : 'Sistema de Seguimiento de Adquisiciones'}
           </p>
         </div>
         <select
@@ -539,7 +543,7 @@ export function Dashboard() {
           </div>
 
           {/* ── Gráfica DGs ── */}
-          {!esIntegrante && datosDG.length > 0 && (
+          {esGlobal && datosDG.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-5">
                 Procedimientos por Dirección General
@@ -550,7 +554,7 @@ export function Dashboard() {
           )}
 
           {/* ── Tabla detalle DGs ── */}
-          {!esIntegrante && datosDG.length > 0 && (
+          {esGlobal && datosDG.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4">
                 Detalle por Dirección General

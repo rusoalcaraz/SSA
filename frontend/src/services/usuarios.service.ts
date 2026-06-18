@@ -6,7 +6,8 @@ export interface FiltroUsuarios {
   limit?: number
   rol?: Rol
   activo?: boolean
-  dgId?: string
+  subdireccionId?: string
+  seccionId?: string
   q?: string
 }
 
@@ -28,6 +29,8 @@ export interface CrearUsuarioPayload {
   contrasena: string
   rol: Rol
   direccionGeneral?: string
+  subdireccion?: string
+  seccion?: string
 }
 
 export interface ActualizarUsuarioPayload {
@@ -35,6 +38,8 @@ export interface ActualizarUsuarioPayload {
   apellidos?: string
   rol?: Rol
   direccionGeneral?: string
+  subdireccion?: string
+  seccion?: string
   activo?: boolean
 }
 
@@ -51,7 +56,8 @@ async function listar(filtros: FiltroUsuarios = {}): Promise<ListaUsuariosRespon
   if (filtros.limit) params.limit = filtros.limit
   if (filtros.rol) params.rol = filtros.rol
   if (filtros.activo !== undefined) params.activo = filtros.activo
-  if (filtros.dgId) params.dgId = filtros.dgId
+  if (filtros.subdireccionId) params.subdireccionId = filtros.subdireccionId
+  if (filtros.seccionId) params.seccionId = filtros.seccionId
   if (filtros.q) params.q = filtros.q
 
   const { data } = await api.get<ApiResponse<UsuarioCompleto[]> & { pagination: Paginacion }>(

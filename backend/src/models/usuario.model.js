@@ -7,16 +7,15 @@ const SALT_ROUNDS = 12;
 
 const ROLES = [
   'administrador',
-  'oficialia_mayor',
-  'dir_gral_admon',
-  'integrante_adquisiciones',
+  'adquisiciones',
+  'subdirector',
+  'jefe_seccion',
   'asesor_tecnico',
 ];
 
-const ROLES_CON_ORGANISMO = [
-  'integrante_adquisiciones',
-  'asesor_tecnico',
-];
+const ROLES_CON_SUBDIRECCION = ['subdirector'];
+
+const ROLES_CON_SECCION = ['jefe_seccion', 'asesor_tecnico'];
 
 const usuarioSchema = new mongoose.Schema(
   {
@@ -51,6 +50,16 @@ const usuarioSchema = new mongoose.Schema(
     direccionGeneral: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'DireccionGeneral',
+      default: null,
+    },
+    subdireccion: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Subdireccion',
+      default: null,
+    },
+    seccion: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Seccion',
       default: null,
     },
     activo: {
@@ -88,11 +97,11 @@ const usuarioSchema = new mongoose.Schema(
 
 // --- Validacion: direccionGeneral obligatoria para roles con organismo ---
 usuarioSchema.pre('validate', function (next) {
-  if (ROLES_CON_ORGANISMO.includes(this.rol) && !this.direccionGeneral) {
-    this.invalidate(
-      'direccionGeneral',
-      `El organismo es obligatorio para el rol ${this.rol}`
-    );
+  if (ROLES_CON_SUBDIRECCION.includes(this.rol) && !this.subdireccion) {
+    this.invalidate('subdireccion', `La subdireccion es obligatoria para el rol ${this.rol}`);
+  }
+  if (ROLES_CON_SECCION.includes(this.rol) && !this.seccion) {
+    this.invalidate('seccion', `La seccion es obligatoria para el rol ${this.rol}`);
   }
   next();
 });
@@ -117,7 +126,9 @@ usuarioSchema.virtual('nombreCompleto').get(function () {
 // --- Indices (correo ya tiene unique:true en la definicion del campo) ---
 usuarioSchema.index({ rol: 1 });
 usuarioSchema.index({ direccionGeneral: 1 });
+usuarioSchema.index({ subdireccion: 1 });
+usuarioSchema.index({ seccion: 1 });
 
 const Usuario = mongoose.model('Usuario', usuarioSchema);
 
-module.exports = { Usuario, ROLES, ROLES_CON_ORGANISMO };
+module.exports = { Usuario, ROLES, ROLES_CON_SUBDIRECCION, ROLES_CON_SECCION };

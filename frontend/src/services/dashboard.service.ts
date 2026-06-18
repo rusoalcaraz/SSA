@@ -54,7 +54,8 @@ async function misProcedimientos(params: {
   q?: string
   tipoProcedimiento?: TipoProcedimiento
   dgId?: string
-  asesorTitularQ?: string
+  subdireccionId?: string
+  seccionId?: string
 } = {}): Promise<{ procedimientos: Procedimiento[]; pagination: Paginacion }> {
   const { data } = await api.get<ApiResponse<Procedimiento[]> & { pagination: Paginacion }>(
     '/dashboard/mis-procedimientos',

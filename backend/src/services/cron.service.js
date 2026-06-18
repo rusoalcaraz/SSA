@@ -10,13 +10,9 @@ const {
 
 const ESTADOS_ACTIVOS = ['pendiente', 'activo', 'fecha_propuesta', 'fecha_rechazada'];
 
-// -------------------------------------------------------
-// Helper: obtiene correos de los integrantes de adquisiciones de un organismo
-// -------------------------------------------------------
-async function correosIntegrantes(direccionGeneralId) {
+async function correosAdquisiciones() {
   const usuarios = await Usuario.find({
-    rol: 'integrante_adquisiciones',
-    direccionGeneral: direccionGeneralId,
+    rol: 'adquisiciones',
     activo: true,
   }).select('correo');
   return usuarios.map((u) => u.correo);
@@ -28,7 +24,7 @@ async function correosIntegrantes(direccionGeneralId) {
 // -------------------------------------------------------
 async function procesarEtapas(etapas, procedimiento, hoy, enTresDias) {
   let modificado = false;
-  const correosOrganismo = await correosIntegrantes(procedimiento.direccionGeneral);
+  const correosOrganismo = await correosAdquisiciones();
 
   for (const etapa of etapas) {
     if (!ESTADOS_ACTIVOS.includes(etapa.estado) || !etapa.fechaPlaneada) continue;

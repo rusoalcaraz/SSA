@@ -15,6 +15,8 @@ function generarAccessToken(usuario) {
       id: usuario._id,
       rol: usuario.rol,
       dgId: usuario.direccionGeneral || null,
+      subdireccionId: usuario.subdireccion || null,
+      seccionId: usuario.seccion || null,
     },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRES_IN }
@@ -132,6 +134,8 @@ async function login(req, res, next) {
         correo: usuario.correo,
         rol: usuario.rol,
         direccionGeneral: usuario.direccionGeneral,
+        subdireccion: usuario.subdireccion || null,
+        seccion: usuario.seccion || null,
       },
     }, 'Sesion iniciada correctamente');
   } catch (error) {

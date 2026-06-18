@@ -760,9 +760,9 @@ export function Entregas() {
   const { tieneRol, usuario } = useAuth()
   const [modalCrear, setModalCrear] = useState(false)
 
-  const puedeEditar = tieneRol('administrador', 'integrante_adquisiciones')
+  const puedeEditar = tieneRol('administrador', 'adquisiciones', 'subdirector')
   const puedeSubirDoc = puedeEditar
-  const puedeValidar = tieneRol('administrador', 'integrante_adquisiciones')
+  const puedeValidar = tieneRol('administrador', 'adquisiciones', 'subdirector')
 
   const esAT =
     tieneRol('asesor_tecnico') &&

@@ -84,7 +84,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
     tieneRol('asesor_tecnico') &&
     (procedimiento.asesorTitular?._id === usuario?._id ||
       procedimiento.asesorSuplente?._id === usuario?._id)
-  const esIntegrante = tieneRol('integrante_adquisiciones', 'administrador')
+  const esGestor = tieneRol('administrador', 'adquisiciones', 'subdirector')
   const esAdministrador = tieneRol('administrador')
 
   if (etapas.length === 0) {
@@ -101,19 +101,19 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
             !estadosNoCompletables.includes(etapa.estado) &&
             !etapa.noAplica
           const puedeValidar =
-            (esIntegrante || esAdministrador) &&
+            esGestor &&
             etapa.estado === 'completado_propuesto'
           const puedeProponer =
-            esIntegrante &&
+            esGestor &&
             etapa.estado !== 'completado' &&
             etapa.estado !== 'completado_propuesto' &&
             !etapa.noAplica
           const puedeResponder =
             (esAT || esAdministrador) && etapa.estado === 'fecha_propuesta'
-          const puedeSobreescribir = esIntegrante && etapa.estado === 'fecha_rechazada'
-          const puedeObservacion = (esAT || esIntegrante || esAdministrador) && !etapa.noAplica
+          const puedeSobreescribir = esGestor && etapa.estado === 'fecha_rechazada'
+          const puedeObservacion = (esAT || esGestor) && !etapa.noAplica
           const puedeNoAplica =
-            esIntegrante &&
+            esGestor &&
             etapa.estado !== 'completado' &&
             etapa.estado !== 'completado_propuesto'
 

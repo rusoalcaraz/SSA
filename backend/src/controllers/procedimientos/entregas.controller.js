@@ -8,7 +8,7 @@ const auditLog = require('../../services/auditLog.service');
 const {
   esMiProcedimiento,
   puedeGestionarProcedimiento,
-  perteneceAlMismoOrganismo,
+  puedeVerProcedimiento,
 } = require('../../services/procedimiento.service');
 
 // -------------------------------------------------------
@@ -26,13 +26,13 @@ async function listar(req, res, next) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
     }
 
-    const { rol, id: usuarioId, dgId } = req.usuario;
-
-    if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
+    const { rol, id: usuarioId } = req.usuario;
+    if (rol === 'asesor_tecnico') {
+      if (!esMiProcedimiento(procedimiento, usuarioId)) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
+      }
+    } else if (!puedeVerProcedimiento(procedimiento, req.usuario)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
-    }
-    if (rol === 'integrante_adquisiciones' && !perteneceAlMismoOrganismo(procedimiento, dgId)) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otro organismo');
     }
 
     return ok(res, procedimiento.entregas, 'Entregas obtenidas');
@@ -316,12 +316,13 @@ async function obtenerEvidenciaEntrega(req, res, next) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
     }
 
-    const { rol, id: usuarioId, dgId } = req.usuario;
-    if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
+    const { rol, id: usuarioId } = req.usuario;
+    if (rol === 'asesor_tecnico') {
+      if (!esMiProcedimiento(procedimiento, usuarioId)) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
+      }
+    } else if (!puedeVerProcedimiento(procedimiento, req.usuario)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
-    }
-    if (rol === 'integrante_adquisiciones' && !perteneceAlMismoOrganismo(procedimiento, dgId)) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otro organismo');
     }
 
     const entrega = procedimiento.entregas.id(req.params.entregaId);

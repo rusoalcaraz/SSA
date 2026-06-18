@@ -84,7 +84,7 @@ function NavItems({ colapsado }: { colapsado: boolean }) {
 
   const items: NavItem[] = []
 
-  if (tieneRol('administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones')) {
+  if (tieneRol('administrador', 'adquisiciones', 'subdirector', 'jefe_seccion')) {
     items.push({ to: '/dashboard', label: 'Dashboard', icon: 'dashboard' })
     items.push({ to: '/linea-del-tiempo', label: 'Línea del tiempo', icon: 'timeline' })
   }
@@ -95,21 +95,21 @@ function NavItems({ colapsado }: { colapsado: boolean }) {
   if (
     tieneRol(
       'administrador',
-      'oficialia_mayor',
-      'dir_gral_admon',
-      'integrante_adquisiciones'
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion'
     )
   ) {
     items.push({ to: '/procedimientos', label: 'Procedimientos', icon: 'procedimientos' })
   }
-  if (tieneRol('administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones')) {
+  if (tieneRol('administrador', 'adquisiciones', 'subdirector', 'jefe_seccion')) {
     items.push({ to: '/reportes', label: 'Reportes', icon: 'reportes' })
   }
-  if (tieneRol('administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones')) {
+  if (tieneRol('administrador', 'adquisiciones', 'subdirector', 'jefe_seccion')) {
     items.push({ to: '/admin/usuarios', label: 'Usuarios', icon: 'usuarios' })
   }
-  if (tieneRol('administrador', 'oficialia_mayor', 'dir_gral_admon')) {
-    items.push({ to: '/admin/organismos', label: 'Organismos', icon: 'dgs' })
+  if (tieneRol('administrador', 'subdirector')) {
+    items.push({ to: '/admin/areas', label: 'Áreas', icon: 'dgs' })
   }
 
   return (

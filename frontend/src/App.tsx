@@ -23,7 +23,7 @@ import { DireccionesGenerales } from './pages/admin/DireccionesGenerales'
 function InicioRedirect() {
   const { tieneRol } = useAuth()
 
-  if (tieneRol('administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones')) {
+  if (tieneRol('administrador', 'adquisiciones', 'subdirector', 'jefe_seccion')) {
     return <Navigate to="/dashboard" replace />
   }
 
@@ -53,7 +53,7 @@ export default function App() {
               {/* Dashboard global */}
               <Route
                 path="dashboard"
-                element={<ProtectedRoute roles={['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones']} />}
+                element={<ProtectedRoute roles={['administrador', 'adquisiciones', 'subdirector', 'jefe_seccion']} />}
               >
                 <Route index element={<Dashboard />} />
               </Route>
@@ -65,9 +65,9 @@ export default function App() {
                   <ProtectedRoute
                     roles={[
                       'administrador',
-                      'oficialia_mayor',
-                      'dir_gral_admon',
-                      'integrante_adquisiciones',
+                      'adquisiciones',
+                      'subdirector',
+                      'jefe_seccion',
                       'asesor_tecnico',
                     ]}
                   />
@@ -76,7 +76,7 @@ export default function App() {
                 <Route index element={<ListaProcedimientos />} />
                 <Route
                   path="nuevo"
-                  element={<ProtectedRoute roles={['administrador', 'integrante_adquisiciones']} />}
+                  element={<ProtectedRoute roles={['administrador', 'adquisiciones', 'subdirector']} />}
                 >
                   <Route index element={<NuevoProcedimiento />} />
                 </Route>
@@ -103,7 +103,7 @@ export default function App() {
 
               <Route
                 path="linea-del-tiempo"
-                element={<ProtectedRoute roles={['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones', 'asesor_tecnico']} />}
+                element={<ProtectedRoute roles={['administrador', 'adquisiciones', 'subdirector', 'jefe_seccion', 'asesor_tecnico']} />}
               >
                 <Route index element={<LineaDelTiempo />} />
               </Route>
@@ -115,9 +115,9 @@ export default function App() {
                   <ProtectedRoute
                     roles={[
                       'administrador',
-                      'oficialia_mayor',
-                      'dir_gral_admon',
-                      'integrante_adquisiciones',
+                      'adquisiciones',
+                      'subdirector',
+                      'jefe_seccion',
                     ]}
                   />
                 }
@@ -133,9 +133,9 @@ export default function App() {
                     <ProtectedRoute
                       roles={[
                         'administrador',
-                        'oficialia_mayor',
-                        'dir_gral_admon',
-                        'integrante_adquisiciones',
+                        'adquisiciones',
+                        'subdirector',
+                        'jefe_seccion',
                       ]}
                     />
                   }
@@ -143,14 +143,14 @@ export default function App() {
                   <Route index element={<Usuarios />} />
                 </Route>
                 <Route
-                  path="organismos"
-                  element={<ProtectedRoute roles={['administrador', 'oficialia_mayor', 'dir_gral_admon']} />}
+                  path="areas"
+                  element={<ProtectedRoute roles={['administrador', 'subdirector']} />}
                 >
                   <Route index element={<DireccionesGenerales />} />
                 </Route>
                 <Route
                   path="direcciones-generales"
-                  element={<Navigate to="/admin/organismos" replace />}
+                  element={<Navigate to="/admin/areas" replace />}
                 />
               </Route>
 

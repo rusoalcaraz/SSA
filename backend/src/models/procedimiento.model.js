@@ -252,6 +252,16 @@ const procedimientoSchema = new mongoose.Schema(
       ref: 'DireccionGeneral',
       required: [true, 'La Direccion General es requerida'],
     },
+    subdireccion: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Subdireccion',
+      required: [true, 'La subdireccion es requerida'],
+    },
+    seccion: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Seccion',
+      required: [true, 'La seccion es requerida'],
+    },
 
     // Asesores tecnicos
     asesorTitular: {
@@ -367,6 +377,8 @@ procedimientoSchema.pre('validate', function (next) {
 // numeroProcedimiento ya tiene unique:true en la definicion del campo
 procedimientoSchema.index({ anioFiscal: 1 });
 procedimientoSchema.index({ direccionGeneral: 1 });
+procedimientoSchema.index({ subdireccion: 1 });
+procedimientoSchema.index({ seccion: 1 });
 procedimientoSchema.index({ asesorTitular: 1 });
 procedimientoSchema.index({ asesorSuplente: 1 });
 procedimientoSchema.index({ etapaActual: 1 });

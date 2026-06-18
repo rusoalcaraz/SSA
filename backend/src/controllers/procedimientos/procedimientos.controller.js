@@ -9,21 +9,23 @@ const {
   filtroByRol,
   puedeVerProcedimiento,
   puedeGestionarProcedimiento,
-  perteneceAlMismoOrganismo,
   inicializarEtapas,
 } = require('../../services/procedimiento.service');
 const { notificarProcedimientoUrgente } = require('../../services/notificaciones.service');
 const { Usuario } = require('../../models/usuario.model');
+const { Seccion } = require('../../models/seccion.model');
 
 const POPULATE_BASICO = [
   { path: 'bienServicio', select: 'clave descripcion tipo' },
   { path: 'direccionGeneral', select: 'nombre siglas' },
+  { path: 'subdireccion', select: 'nombre' },
+  { path: 'seccion', select: 'nombre subdireccion' },
   { path: 'asesorTitular', select: 'nombre apellidos correo' },
   { path: 'asesorSuplente', select: 'nombre apellidos correo' },
   { path: 'creadoPor', select: 'nombre apellidos' },
 ];
 
-async function validarAsesoresDelOrganismo(organismoId, asesorTitular, asesorSuplente) {
+async function validarAsesoresDeLaSeccion(seccionId, asesorTitular, asesorSuplente) {
   const idsAsesores = [asesorTitular, asesorSuplente].filter(Boolean);
   if (idsAsesores.length === 0) return;
 
@@ -31,14 +33,14 @@ async function validarAsesoresDelOrganismo(organismoId, asesorTitular, asesorSup
     _id: { $in: idsAsesores },
     rol: 'asesor_tecnico',
     activo: true,
-    direccionGeneral: organismoId,
+    seccion: seccionId,
   }).select('_id');
 
   if (asesores.length !== idsAsesores.length) {
     throw crearError(
       400,
       'ASESOR_INVALIDO',
-      'Los asesores tecnicos deben estar activos y pertenecer al mismo organismo del procedimiento'
+      'Los asesores tecnicos deben estar activos y pertenecer a la misma seccion del procedimiento'
     );
   }
 }
@@ -54,7 +56,7 @@ async function listar(req, res, next) {
     }
 
     // Filtros opcionales de query
-    const { anioFiscal, urgente, etapaActual, tipoProcedimiento, dgId } = req.query;
+    const { anioFiscal, urgente, etapaActual, tipoProcedimiento, subdireccionId, seccionId, dgId } = req.query;
     const filtro = { ...filtroRol };
     if (anioFiscal) filtro.anioFiscal = Number(anioFiscal);
     if (urgente !== undefined) filtro.urgente = urgente === 'true';
@@ -91,8 +93,14 @@ async function listar(req, res, next) {
       }
     }
     if (tipoProcedimiento) filtro.tipoProcedimiento = tipoProcedimiento;
-    if (dgId && ['administrador', 'oficialia_mayor', 'dir_gral_admon'].includes(req.usuario.rol)) {
+    if ((req.usuario.rol === 'administrador' || req.usuario.rol === 'adquisiciones') && dgId) {
       filtro.direccionGeneral = dgId;
+    }
+    if ((req.usuario.rol === 'administrador' || req.usuario.rol === 'adquisiciones') && subdireccionId) {
+      filtro.subdireccion = subdireccionId;
+    }
+    if ((req.usuario.rol === 'administrador' || req.usuario.rol === 'adquisiciones') && seccionId) {
+      filtro.seccion = seccionId;
     }
 
     // Paginacion
@@ -217,6 +225,7 @@ async function crear(req, res, next) {
       montoEstimado,
       moneda,
       direccionGeneral,
+      seccion,
       asesorTitular,
       asesorSuplente,
       tipoProcedimiento,
@@ -227,24 +236,23 @@ async function crear(req, res, next) {
       justificacionUrgencia,
     } = req.body;
 
-    const organismoObjetivo =
-      req.usuario.rol === 'integrante_adquisiciones'
-        ? req.usuario.dgId
-        : direccionGeneral;
-
-    if (!organismoObjetivo) {
-      throw crearError(400, 'DG_REQUERIDA', 'El organismo del procedimiento es obligatorio');
+    if (!seccion) {
+      throw crearError(400, 'SECCION_REQUERIDA', 'La seccion del procedimiento es obligatoria');
     }
 
-    if (
-      req.usuario.rol === 'integrante_adquisiciones' &&
-      direccionGeneral &&
-      String(direccionGeneral) !== String(req.usuario.dgId)
-    ) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede crear procedimientos de su propio organismo');
+    const seccionDb = await Seccion.findOne({ _id: seccion, activa: true }).select('_id subdireccion');
+    if (!seccionDb) throw crearError(404, 'SECCION_NO_ENCONTRADA', 'Seccion no encontrada o inactiva');
+
+    const subdireccionDb = seccionDb.subdireccion;
+
+    if (req.usuario.rol === 'subdirector' && String(req.usuario.subdireccionId || '') !== String(subdireccionDb)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede crear procedimientos dentro de su subdireccion');
     }
 
-    await validarAsesoresDelOrganismo(organismoObjetivo, asesorTitular, asesorSuplente);
+    const organismoObjetivo = direccionGeneral;
+    if (!organismoObjetivo) throw crearError(400, 'DG_REQUERIDA', 'La Direccion General del procedimiento es obligatoria');
+
+    await validarAsesoresDeLaSeccion(seccionDb._id, asesorTitular, asesorSuplente);
 
     const numeroProcedimiento = await generarNumeroProcedimiento(
       organismoObjetivo,
@@ -263,6 +271,8 @@ async function crear(req, res, next) {
       montoEstimado,
       moneda,
       direccionGeneral: organismoObjetivo,
+      subdireccion: subdireccionDb,
+      seccion: seccionDb._id,
       asesorTitular,
       asesorSuplente: asesorSuplente || null,
       tipoProcedimiento,
@@ -290,20 +300,14 @@ async function crear(req, res, next) {
     // Notificar procedimiento urgente a roles de consulta global e integrantes del organismo.
     if (urgente) {
       Promise.all([
-        Usuario.find({ rol: { $in: ['oficialia_mayor', 'dir_gral_admon'] }, activo: true }).select('correo'),
-        Usuario.find({
-          rol: 'integrante_adquisiciones',
-          direccionGeneral: organismoObjetivo,
-          activo: true,
-        }).select('correo'),
+        Usuario.find({ rol: { $in: ['administrador', 'adquisiciones'] }, activo: true }).select('correo'),
       ])
-        .then(([lecturaGlobal, integrantes]) => {
-          const correosLecturaGlobal = lecturaGlobal.map((u) => u.correo);
-          const correosIntegrantes = integrantes.map((u) => u.correo);
+        .then(([destinatarios]) => {
+          const correos = destinatarios.map((u) => u.correo);
           return notificarProcedimientoUrgente(
             procedimiento,
-            correosLecturaGlobal,
-            correosIntegrantes
+            correos,
+            []
           );
         })
         .catch((err) => console.error('[Notificaciones] crear urgente:', err.message));
@@ -345,8 +349,8 @@ async function actualizar(req, res, next) {
       }
     }
 
-    await validarAsesoresDelOrganismo(
-      procedimiento.direccionGeneral,
+    await validarAsesoresDeLaSeccion(
+      procedimiento.seccion,
       procedimiento.asesorTitular,
       procedimiento.asesorSuplente
     );
@@ -448,17 +452,11 @@ async function actualizarInfoCronograma(req, res, next) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
     }
 
-    if (
-      req.usuario.rol === 'integrante_adquisiciones' &&
-      !perteneceAlMismoOrganismo(procedimiento, req.usuario.dgId)
-    ) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede modificar procedimientos de su propio organismo');
-    }
-
-    if (
-      req.usuario.rol === 'asesor_tecnico' &&
-      !puedeVerProcedimiento(procedimiento, req.usuario)
-    ) {
+    if (req.usuario.rol === 'asesor_tecnico') {
+      if (!puedeVerProcedimiento(procedimiento, req.usuario)) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
+      }
+    } else if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
     }
 
@@ -496,17 +494,11 @@ async function actualizarInfoHojaDeTrabajo(req, res, next) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
     }
 
-    if (
-      req.usuario.rol === 'integrante_adquisiciones' &&
-      !perteneceAlMismoOrganismo(procedimiento, req.usuario.dgId)
-    ) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede modificar procedimientos de su propio organismo');
-    }
-
-    if (
-      req.usuario.rol === 'asesor_tecnico' &&
-      !puedeVerProcedimiento(procedimiento, req.usuario)
-    ) {
+    if (req.usuario.rol === 'asesor_tecnico') {
+      if (!puedeVerProcedimiento(procedimiento, req.usuario)) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
+      }
+    } else if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene permisos para modificar este procedimiento');
     }
 

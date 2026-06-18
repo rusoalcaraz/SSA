@@ -4,7 +4,7 @@ import { procedimientosService, type CrearProcedimientoPayload } from '../../ser
 import { catalogosService } from '../../services/catalogos.service'
 import { usuariosService } from '../../services/usuarios.service'
 import { mensajeDeError } from '../../services/api'
-import type { DireccionGeneral, BienServicio, UsuarioResumen, TipoProcedimiento, InfoCronograma } from '../../types'
+import type { DireccionGeneral, BienServicio, UsuarioResumen, TipoProcedimiento, InfoCronograma, Seccion } from '../../types'
 import { Spinner } from '../../components/ui/Spinner'
 import { ETIQUETA_TIPO_LARGO } from '../../utils/formato'
 import { useAuth } from '../../hooks/useAuth'
@@ -64,11 +64,12 @@ const SELECT = INPUT
 
 export function NuevoProcedimiento() {
   const navigate = useNavigate()
-  const { usuario, tieneRol } = useAuth()
-  const esIntegrante = tieneRol('integrante_adquisiciones')
+  const { tieneRol } = useAuth()
+  const puedeCrear = tieneRol('administrador', 'adquisiciones', 'subdirector')
 
   // Datos de catalogos
   const [dgs, setDGs] = useState<DireccionGeneral[]>([])
+  const [secciones, setSecciones] = useState<Seccion[]>([])
   const [bienesServicios, setBienesServicios] = useState<BienServicio[]>([])
   const [asesores, setAsesores] = useState<UsuarioResumen[]>([])
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true)
@@ -81,6 +82,7 @@ export function NuevoProcedimiento() {
   const [descripcionEspecifica, setDescripcionEspecifica] = useState('')
   const [montoEstimado, setMontoEstimado] = useState('')
   const [direccionGeneral, setDireccionGeneral] = useState('')
+  const [seccionId, setSeccionId] = useState('')
   const [asesorTitular, setAsesorTitular] = useState('')
   const [asesorSuplente, setAsesorSuplente] = useState('')
   const [tipoProcedimiento, setTipoProcedimiento] = useState<TipoProcedimiento | ''>('')
@@ -113,25 +115,17 @@ export function NuevoProcedimiento() {
   useEffect(() => {
     async function cargar() {
       try {
-        const [dgData, bsData, asData] = await Promise.all([
+        const [dgData, secData, bsData, asData] = await Promise.all([
           catalogosService.listarDGs(),
+          catalogosService.listarSecciones({ soloActivas: true }),
           catalogosService.listarBienesServicios(),
           usuariosService.listarAsesores(),
         ])
         setDGs(dgData)
+        setSecciones(secData)
         setBienesServicios(bsData)
         setAsesores(asData)
-
-        if (esIntegrante && usuario?.direccionGeneral) {
-          const organismoUsuario = dgData.find((dg) => dg._id === usuario.direccionGeneral)
-          setDireccionGeneral(usuario.direccionGeneral)
-          if (organismoUsuario) {
-            setInfoCronograma((valorActual) => ({
-              ...valorActual,
-              organismo: valorActual.organismo || organismoUsuario.siglas || organismoUsuario.nombre,
-            }))
-          }
-        }
+        if (!direccionGeneral && dgData.length === 1) setDireccionGeneral(dgData[0]._id)
       } catch {
         setError('No se pudieron cargar los catalogos. Recargue la pagina.')
       } finally {
@@ -139,28 +133,35 @@ export function NuevoProcedimiento() {
       }
     }
     cargar()
-  }, [esIntegrante, usuario?.direccionGeneral])
+  }, [])
 
-  const dgsDisponibles = esIntegrante && usuario?.direccionGeneral
-    ? dgs.filter((dg) => dg._id === usuario.direccionGeneral)
-    : dgs
-
-  const asesoresDisponibles = (direccionGeneral
-    ? asesores.filter((at) => at.direccionGeneral === direccionGeneral)
+  const asesoresDisponibles = seccionId
+    ? asesores.filter((at) => {
+        const sec = at.seccion
+        const secId = typeof sec === 'string' ? sec : sec?._id
+        return secId === seccionId
+      })
     : asesores
-  )
 
   const requiereExcepcion = tipoProcedimiento !== '' && TIPOS_CON_EXCEPCION.includes(tipoProcedimiento as TipoProcedimiento)
   const requiereConsultoria = supuestoExcepcion === 'fraccion_X'
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (!puedeCrear) {
+      setError('No tiene permisos para crear procedimientos.')
+      return
+    }
     if (!tipoProcedimiento) {
       setError('Seleccione el tipo de procedimiento.')
       return
     }
-    if (esIntegrante && !usuario?.direccionGeneral) {
-      setError('Su usuario no tiene organismo asignado. Solicite la asignacion antes de crear procedimientos.')
+    if (!direccionGeneral) {
+      setError('Seleccione la Dirección General.')
+      return
+    }
+    if (!seccionId) {
+      setError('Seleccione la sección del procedimiento.')
       return
     }
     setError(null)
@@ -174,6 +175,7 @@ export function NuevoProcedimiento() {
       descripcionEspecifica: descripcionEspecifica || undefined,
       montoEstimado: montoEstimado ? Number(montoEstimado) : undefined,
       direccionGeneral,
+      seccion: seccionId,
       asesorTitular,
       asesorSuplente: asesorSuplente || undefined,
       tipoProcedimiento: tipoProcedimiento as TipoProcedimiento,
@@ -266,7 +268,7 @@ export function NuevoProcedimiento() {
                 disabled={enviando}
               />
             </Campo>
-            <Campo label="Organismo (DG)" requerido>
+            <Campo label="Dirección General" requerido>
               <select
                 required
                 value={direccionGeneral}
@@ -275,7 +277,6 @@ export function NuevoProcedimiento() {
                   setDireccionGeneral(val)
                   setAsesorTitular('')
                   setAsesorSuplente('')
-                  // Prefijar el "Organismo" del cronograma con las siglas de la DG seleccionada
                   const dg = dgs.find((x) => x._id === val)
                   if (dg) {
                     setInfoCronograma((v) => ({ ...v, organismo: dg.siglas || dg.nombre }))
@@ -284,22 +285,38 @@ export function NuevoProcedimiento() {
                   }
                 }}
                 className={SELECT}
-                disabled={enviando || esIntegrante}
+                disabled={enviando || dgs.length === 1}
               >
                 <option value="">Seleccionar organismo</option>
-                {dgsDisponibles.map((dg) => (
+                {dgs.map((dg) => (
                   <option key={dg._id} value={dg._id}>
                     {dg.siglas} — {dg.nombre}
                   </option>
                 ))}
               </select>
-              {esIntegrante && (
-                <p className="text-xs text-gray-400">
-                  El organismo se fija automaticamente con base en su perfil.
-                </p>
-              )}
             </Campo>
           </div>
+
+          <Campo label="Sección" requerido>
+            <select
+              required
+              value={seccionId}
+              onChange={(e) => {
+                setSeccionId(e.target.value)
+                setAsesorTitular('')
+                setAsesorSuplente('')
+              }}
+              className={SELECT}
+              disabled={enviando}
+            >
+              <option value="">Seleccionar sección</option>
+              {secciones.map((sec) => (
+                <option key={sec._id} value={sec._id}>
+                  {sec.subdireccion?.nombre} — {sec.nombre}
+                </option>
+              ))}
+            </select>
+          </Campo>
 
           <Campo label="Descripcion" ayuda="Opcional. Contexto adicional sobre el procedimiento.">
             <textarea
@@ -699,7 +716,7 @@ export function NuevoProcedimiento() {
         <div className="flex items-center gap-3 pb-8">
           <button
             type="submit"
-            disabled={enviando || !titulo || !bienServicio || !direccionGeneral || !asesorTitular || !tipoProcedimiento}
+            disabled={enviando || !titulo || !bienServicio || !direccionGeneral || !seccionId || !asesorTitular || !tipoProcedimiento}
             className="px-5 py-2.5 bg-blue-900 hover:bg-blue-800 disabled:bg-blue-300 text-white text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2"
           >
             {enviando && <Spinner className="text-white h-4 w-4" />}

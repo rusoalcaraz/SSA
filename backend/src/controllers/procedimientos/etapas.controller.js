@@ -6,7 +6,8 @@ const { ok } = require('../../utils/respuesta');
 const auditLog = require('../../services/auditLog.service');
 const {
   esMiProcedimiento,
-  perteneceAlMismoOrganismo,
+  puedeVerProcedimiento,
+  puedeGestionarProcedimiento,
 } = require('../../services/procedimiento.service');
 const { notificarCambioFecha } = require('../../services/notificaciones.service');
 const path = require('path');
@@ -366,12 +367,13 @@ async function agregarObservacion(req, res, next) {
 
     const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
 
-    const { rol, id: usuarioId, dgId } = req.usuario;
-    if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
+    const { rol, id: usuarioId } = req.usuario;
+    if (rol === 'asesor_tecnico') {
+      if (!esMiProcedimiento(procedimiento, usuarioId)) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
+      }
+    } else if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
-    }
-    if (rol === 'integrante_adquisiciones' && !perteneceAlMismoOrganismo(procedimiento, dgId)) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otro organismo');
     }
 
     const archivos = req.files
@@ -404,12 +406,13 @@ async function subirArchivo(req, res, next) {
 
     const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
 
-    const { rol, id: usuarioId, dgId } = req.usuario;
-    if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
+    const { rol, id: usuarioId } = req.usuario;
+    if (rol === 'asesor_tecnico') {
+      if (!esMiProcedimiento(procedimiento, usuarioId)) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
+      }
+    } else if (!puedeGestionarProcedimiento(procedimiento, req.usuario)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
-    }
-    if (rol === 'integrante_adquisiciones' && !perteneceAlMismoOrganismo(procedimiento, dgId)) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otro organismo');
     }
 
     // Agregar como observacion con solo archivo adjunto
@@ -497,12 +500,13 @@ async function obtenerEvidencia(req, res, next) {
   try {
     const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
 
-    const { rol, id: usuarioId, dgId } = req.usuario;
-    if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
+    const { rol, id: usuarioId } = req.usuario;
+    if (rol === 'asesor_tecnico') {
+      if (!esMiProcedimiento(procedimiento, usuarioId)) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
+      }
+    } else if (!puedeVerProcedimiento(procedimiento, req.usuario)) {
       throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
-    }
-    if (rol === 'integrante_adquisiciones' && !perteneceAlMismoOrganismo(procedimiento, dgId)) {
-      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otro organismo');
     }
 
     const evidencia = etapa.evidencias.id(req.params.archivoId);

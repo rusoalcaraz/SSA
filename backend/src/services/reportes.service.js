@@ -43,10 +43,12 @@ const COLUMNAS_EXCEL = [
 // Construye el filtro Mongoose a partir de los query params
 // -------------------------------------------------------
 function construirFiltro(query) {
-  const { anioFiscal, dgId, tipoProcedimiento, etapaActual, urgente } = query;
+  const { anioFiscal, dgId, tipoProcedimiento, etapaActual, urgente, subdireccionId, seccionId } = query;
   const filtro = {};
   if (anioFiscal) filtro.anioFiscal = Number(anioFiscal);
   if (dgId) filtro.direccionGeneral = dgId;
+  if (subdireccionId) filtro.subdireccion = subdireccionId;
+  if (seccionId) filtro.seccion = seccionId;
   if (tipoProcedimiento) filtro.tipoProcedimiento = tipoProcedimiento;
   if (etapaActual) filtro.etapaActual = etapaActual;
   if (urgente !== undefined) filtro.urgente = urgente === 'true';
@@ -59,11 +61,13 @@ function construirFiltro(query) {
 async function obtenerProcedimientos(filtro) {
   return Procedimiento.find(filtro)
     .populate('direccionGeneral', 'nombre siglas')
+    .populate('subdireccion', 'nombre')
+    .populate('seccion', 'nombre')
     .populate('asesorTitular', 'nombre apellidos')
     .populate('asesorSuplente', 'nombre apellidos')
     .populate('bienServicio', 'clave descripcion')
     .select('-cronograma -hojaDeTrabajoEtapas -entregas -evidenciaJustificacion -contrato')
-    .sort({ direccionGeneral: 1, createdAt: -1 })
+    .sort({ direccionGeneral: 1, subdireccion: 1, seccion: 1, createdAt: -1 })
     .lean();
 }
 

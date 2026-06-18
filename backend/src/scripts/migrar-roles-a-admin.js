@@ -9,9 +9,9 @@ const { Usuario } = require('../models/usuario.model');
 
 const ROLES_VALIDOS = [
   'administrador',
-  'oficialia_mayor',
-  'dir_gral_admon',
-  'integrante_adquisiciones',
+  'adquisiciones',
+  'subdirector',
+  'jefe_seccion',
   'asesor_tecnico',
 ];
 
@@ -26,12 +26,13 @@ async function main() {
   await mongoose.connect(uri);
   console.log('Conexion establecida.\n');
 
-  const filtro = {
-    $or: [{ rol: { $exists: false } }, { rol: { $nin: ROLES_VALIDOS } }],
-  };
+  const filtroIntegranteLegacy = { rol: 'integrante_adquisiciones' };
+  const filtroFueraCatalogo = { $or: [{ rol: { $exists: false } }, { rol: { $nin: ROLES_VALIDOS } }] };
 
-  const rolesEncontrados = await Usuario.distinct('rol', filtro);
-  const totalAfectado = await Usuario.countDocuments(filtro);
+  const totalIntegrantesLegacy = await Usuario.countDocuments(filtroIntegranteLegacy);
+  const rolesEncontrados = await Usuario.distinct('rol', filtroFueraCatalogo);
+  const totalFueraCatalogo = await Usuario.countDocuments(filtroFueraCatalogo);
+  const totalAfectado = totalIntegrantesLegacy + totalFueraCatalogo;
 
   if (totalAfectado === 0) {
     console.log('No hay usuarios con roles fuera del catalogo actual.');
@@ -54,16 +55,26 @@ async function main() {
   }
 
   console.log(`Usuarios a migrar: ${totalAfectado}`);
-  console.log(`Roles detectados: ${rolesEncontrados.map((r) => r ?? '(sin rol)').join(', ')}`);
+  if (totalIntegrantesLegacy > 0) console.log(`Integrantes legacy: ${totalIntegrantesLegacy} -> adquisiciones`);
+  if (totalFueraCatalogo > 0) {
+    console.log(`Fuera de catalogo: ${totalFueraCatalogo}`);
+    console.log(`Roles detectados: ${rolesEncontrados.map((r) => r ?? '(sin rol)').join(', ')}`);
+  }
 
-  const resultado = await Usuario.updateMany(filtro, { $set: { rol: 'administrador' } });
+  const [resultadoIntegrantes, resultadoFueraCatalogo] = await Promise.all([
+    Usuario.updateMany(filtroIntegranteLegacy, { $set: { rol: 'adquisiciones' } }),
+    Usuario.updateMany(filtroFueraCatalogo, { $set: { rol: 'administrador' } }),
+  ]);
+  const migrados = (resultadoIntegrantes.modifiedCount ?? 0) + (resultadoFueraCatalogo.modifiedCount ?? 0);
 
   fs.writeFileSync(
     path.join(process.cwd(), 'migracion-roles-a-admin.json'),
     JSON.stringify(
       {
         success: true,
-        migrados: resultado.modifiedCount ?? 0,
+        migrados,
+        migradosIntegrantesLegacy: resultadoIntegrantes.modifiedCount ?? 0,
+        migradosFueraCatalogo: resultadoFueraCatalogo.modifiedCount ?? 0,
         totalDetectado: totalAfectado,
         rolesDetectados: rolesEncontrados,
         fecha: new Date().toISOString(),
@@ -74,7 +85,7 @@ async function main() {
     'utf8'
   );
 
-  console.log(`Usuarios modificados: ${resultado.modifiedCount ?? 0}`);
+  console.log(`Usuarios modificados: ${migrados}`);
   console.log('Migracion completada.');
 
   await mongoose.disconnect();

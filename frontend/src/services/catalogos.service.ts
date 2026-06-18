@@ -2,6 +2,8 @@ import { api } from './api'
 import type {
   ApiResponse,
   DireccionGeneral,
+  Subdireccion,
+  Seccion,
   BienServicio,
   CatalogoEtapa,
   TipoProcedimiento,
@@ -39,6 +41,56 @@ async function actualizarDG(
 
 async function desactivarDG(id: string): Promise<void> {
   await api.delete(`/catalogos/direcciones-generales/${id}`)
+}
+
+// -------------------------------------------------------
+// Subdirecciones
+// -------------------------------------------------------
+async function listarSubdirecciones(soloActivas = true): Promise<Subdireccion[]> {
+  const { data } = await api.get<ApiResponse<Subdireccion[]>>(
+    '/catalogos/subdirecciones',
+    { params: soloActivas ? { activa: true } : {} }
+  )
+  return data.data
+}
+
+async function crearSubdireccion(payload: { nombre: string }): Promise<Subdireccion> {
+  const { data } = await api.post<ApiResponse<Subdireccion>>('/catalogos/subdirecciones', payload)
+  return data.data
+}
+
+async function actualizarSubdireccion(id: string, payload: { nombre?: string; activa?: boolean }): Promise<Subdireccion> {
+  const { data } = await api.put<ApiResponse<Subdireccion>>(`/catalogos/subdirecciones/${id}`, payload)
+  return data.data
+}
+
+async function desactivarSubdireccion(id: string): Promise<void> {
+  await api.delete(`/catalogos/subdirecciones/${id}`)
+}
+
+// -------------------------------------------------------
+// Secciones
+// -------------------------------------------------------
+async function listarSecciones(params: { soloActivas?: boolean; subdireccionId?: string } = {}): Promise<Seccion[]> {
+  const { soloActivas = true, subdireccionId } = params
+  const { data } = await api.get<ApiResponse<Seccion[]>>('/catalogos/secciones', {
+    params: { ...(soloActivas ? { activa: true } : {}), ...(subdireccionId ? { subdireccionId } : {}) },
+  })
+  return data.data
+}
+
+async function crearSeccion(payload: { nombre: string; subdireccion: string }): Promise<Seccion> {
+  const { data } = await api.post<ApiResponse<Seccion>>('/catalogos/secciones', payload)
+  return data.data
+}
+
+async function actualizarSeccion(id: string, payload: { nombre?: string; activa?: boolean }): Promise<Seccion> {
+  const { data } = await api.put<ApiResponse<Seccion>>(`/catalogos/secciones/${id}`, payload)
+  return data.data
+}
+
+async function desactivarSeccion(id: string): Promise<void> {
+  await api.delete(`/catalogos/secciones/${id}`)
 }
 
 // -------------------------------------------------------
@@ -154,6 +206,14 @@ export const catalogosService = {
   crearDG,
   actualizarDG,
   desactivarDG,
+  listarSubdirecciones,
+  crearSubdireccion,
+  actualizarSubdireccion,
+  desactivarSubdireccion,
+  listarSecciones,
+  crearSeccion,
+  actualizarSeccion,
+  desactivarSeccion,
   listarBienesServicios,
   listarTodosBienesServicios,
   crearBienServicio,

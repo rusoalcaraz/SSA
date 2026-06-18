@@ -25,15 +25,15 @@ router
   .get(
     checkRole([
       'administrador',
-      'oficialia_mayor',
-      'dir_gral_admon',
-      'integrante_adquisiciones',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
       'asesor_tecnico',
     ]),
     procCtrl.listar
   )
   .post(
-    checkRole(['administrador', 'integrante_adquisiciones']),
+    checkRole(['administrador', 'adquisiciones', 'subdirector']),
     procCtrl.crear
   );
 
@@ -42,49 +42,49 @@ router
   .get(
     checkRole([
       'administrador',
-      'oficialia_mayor',
-      'dir_gral_admon',
-      'integrante_adquisiciones',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
       'asesor_tecnico',
     ]),
     procCtrl.obtener
   )
   .put(
-    checkRole(['administrador', 'integrante_adquisiciones']),
+    checkRole(['administrador', 'adquisiciones', 'subdirector']),
     procCtrl.actualizar
   );
 
 router.patch(
   '/:id/urgente',
-  checkRole(['administrador', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector']),
   procCtrl.marcarUrgente
 );
 
 // Texto de justificacion + supuesto de excepcion
 router.put(
   '/:id/justificacion',
-  checkRole(['administrador', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector']),
   procCtrl.actualizarJustificacion
 );
 
 // Informacion de cabecera del cronograma
 router.put(
   '/:id/cronograma-info',
-  checkRole(['administrador', 'integrante_adquisiciones', 'asesor_tecnico']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector', 'asesor_tecnico']),
   procCtrl.actualizarInfoCronograma
 );
 
 // Informacion de cabecera de la hoja de trabajo
 router.put(
   '/:id/hoja-trabajo-info',
-  checkRole(['administrador', 'integrante_adquisiciones', 'asesor_tecnico']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector', 'asesor_tecnico']),
   procCtrl.actualizarInfoHojaDeTrabajo
 );
 
 // Archivo de evidencia de justificacion
 router.post(
   '/:id/justificacion/archivo',
-  checkRole(['administrador', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector']),
   uploadJustificacion.single('archivo'),
   async (req, res, next) => {
     try {
@@ -129,19 +129,19 @@ router.patch(
 
 router.get(
   '/:id/etapas/:etapaId/evidencia/:archivoId',
-  checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones', 'asesor_tecnico']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector', 'jefe_seccion', 'asesor_tecnico']),
   etapasCtrl.obtenerEvidencia
 );
 
 router.patch(
   '/:id/etapas/:etapaId/validar-completado',
-  checkRole(['administrador', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector']),
   etapasCtrl.validarCompletado
 );
 
 router.patch(
   '/:id/etapas/:etapaId/proponer-fecha',
-  checkRole(['administrador', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector']),
   etapasCtrl.proponerFecha
 );
 
@@ -153,26 +153,26 @@ router.patch(
 
 router.patch(
   '/:id/etapas/:etapaId/sobreescribir-fecha',
-  checkRole(['administrador', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector']),
   etapasCtrl.sobreescribirFecha
 );
 
 router.patch(
   '/:id/etapas/:etapaId/no-aplica',
-  checkRole(['administrador', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector']),
   etapasCtrl.marcarNoAplica
 );
 
 router.post(
   '/:id/etapas/:etapaId/observacion',
-  checkRole(['administrador', 'asesor_tecnico', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'asesor_tecnico', 'adquisiciones', 'subdirector']),
   uploadObservacion.array('archivos', 5),
   etapasCtrl.agregarObservacion
 );
 
 router.post(
   '/:id/etapas/:etapaId/archivo',
-  checkRole(['administrador', 'asesor_tecnico', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'asesor_tecnico', 'adquisiciones', 'subdirector']),
   uploadObservacion.single('archivo'),
   etapasCtrl.subirArchivo
 );
@@ -185,21 +185,21 @@ router
   .get(
     checkRole([
       'administrador',
-      'oficialia_mayor',
-      'dir_gral_admon',
-      'integrante_adquisiciones',
+      'adquisiciones',
+      'subdirector',
+      'jefe_seccion',
       'asesor_tecnico',
     ]),
     entregasCtrl.listar
   )
   .post(
-    checkRole(['administrador', 'integrante_adquisiciones']),
+    checkRole(['administrador', 'adquisiciones', 'subdirector']),
     entregasCtrl.crear
   );
 
 router.put(
   '/:id/entregas/:entregaId',
-  checkRole(['administrador', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector']),
   entregasCtrl.actualizar
 );
 
@@ -212,19 +212,19 @@ router.patch(
 
 router.get(
   '/:id/entregas/:entregaId/evidencia/:archivoId',
-  checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones', 'asesor_tecnico']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector', 'jefe_seccion', 'asesor_tecnico']),
   entregasCtrl.obtenerEvidenciaEntrega
 );
 
 router.patch(
   '/:id/entregas/:entregaId/validar',
-  checkRole(['administrador', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector']),
   entregasCtrl.validarEntrega
 );
 
 router.post(
   '/:id/entregas/:entregaId/documento',
-  checkRole(['administrador', 'integrante_adquisiciones']),
+  checkRole(['administrador', 'adquisiciones', 'subdirector']),
   uploadEntrega.single('archivo'),
   entregasCtrl.subirDocumento
 );

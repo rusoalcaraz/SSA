@@ -109,13 +109,13 @@ export function DetalleProcedimiento() {
     )
   }
 
-  const puedeEditarInfo = tieneRol('administrador', 'integrante_adquisiciones', 'asesor_tecnico')
+  const puedeEditarInfo = tieneRol('administrador', 'adquisiciones', 'subdirector', 'asesor_tecnico')
   const puedeVerCronograma = tieneRol(
     'administrador',
-    'integrante_adquisiciones',
-    'asesor_tecnico',
-    'oficialia_mayor',
-    'dir_gral_admon'
+    'adquisiciones',
+    'subdirector',
+    'jefe_seccion',
+    'asesor_tecnico'
   )
   const puedeVerHoja = puedeVerCronograma
   const puedeVerEntregas = puedeVerCronograma
