@@ -126,7 +126,7 @@ async function login(req, res, next) {
     return ok(res, {
       accessToken,
       usuario: {
-        id: usuario._id,
+        _id: usuario._id,
         nombre: usuario.nombre,
         apellidos: usuario.apellidos,
         correo: usuario.correo,

@@ -3,11 +3,23 @@ import type { ApiResponse, EtapaProcedimiento } from '../types'
 
 const base = (id: string, etapaId: string) => `/procedimientos/${id}/etapas/${etapaId}`
 
-async function completar(procedimientoId: string, etapaId: string): Promise<EtapaProcedimiento> {
+async function completar(procedimientoId: string, etapaId: string, archivo?: File): Promise<EtapaProcedimiento> {
+  const form = new FormData()
+  if (archivo) form.append('archivo', archivo)
   const { data } = await api.patch<ApiResponse<EtapaProcedimiento>>(
-    `${base(procedimientoId, etapaId)}/completar`
+    `${base(procedimientoId, etapaId)}/completar`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
   )
   return data.data
+}
+
+async function obtenerEvidencia(procedimientoId: string, etapaId: string, archivoId: string): Promise<string> {
+  const response = await api.get(
+    `${base(procedimientoId, etapaId)}/evidencia/${archivoId}`,
+    { responseType: 'blob' }
+  )
+  return URL.createObjectURL(response.data as Blob)
 }
 
 async function proponerFecha(
@@ -83,6 +95,7 @@ async function validarCompletado(
 
 export const etapasService = {
   completar,
+  obtenerEvidencia,
   validarCompletado,
   proponerFecha,
   responderFecha,

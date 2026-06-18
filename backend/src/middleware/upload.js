@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
@@ -9,6 +10,7 @@ const MAX_BYTES = env.MAX_FILE_SIZE_MB * 1024 * 1024;
 
 /**
  * Fabrica de almacenamiento Multer con destino dinamico.
+ * Crea el directorio de destino si no existe.
  *
  * @param {function} obtenerDestino - Funcion (req, file) => string con la ruta relativa de destino.
  */
@@ -16,6 +18,7 @@ function crearStorage(obtenerDestino) {
   return multer.diskStorage({
     destination(req, file, cb) {
       const destino = path.join(env.UPLOAD_DIR, obtenerDestino(req, file));
+      fs.mkdirSync(destino, { recursive: true });
       cb(null, destino);
     },
     filename(req, file, cb) {
@@ -73,4 +76,28 @@ const uploadEntrega = multer({
   limits: { fileSize: MAX_BYTES },
 });
 
-module.exports = { uploadJustificacion, uploadObservacion, uploadEntrega };
+/**
+ * Middleware de subida para evidencias de etapas (cronograma / hoja de trabajo).
+ * Destino: uploads/evidencias/{procedimientoId}/{etapaId}/
+ */
+const uploadEvidencia = multer({
+  storage: crearStorage(
+    (req) => `evidencias/${req.params.id}/${req.params.etapaId}/`
+  ),
+  fileFilter: filtrarPDF,
+  limits: { fileSize: MAX_BYTES },
+});
+
+/**
+ * Middleware de subida para evidencias de entregas.
+ * Destino: uploads/evidencias-entregas/{procedimientoId}/{entregaId}/
+ */
+const uploadEvidenciaEntrega = multer({
+  storage: crearStorage(
+    (req) => `evidencias-entregas/${req.params.id}/${req.params.entregaId}/`
+  ),
+  fileFilter: filtrarPDF,
+  limits: { fileSize: MAX_BYTES },
+});
+
+module.exports = { uploadJustificacion, uploadObservacion, uploadEntrega, uploadEvidencia, uploadEvidenciaEntrega };

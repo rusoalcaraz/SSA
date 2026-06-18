@@ -534,6 +534,7 @@ export function Usuarios() {
   const esIntegrante = tieneRol('integrante_adquisiciones')
   const organismoFijo = esIntegrante ? (usuario?.direccionGeneral ?? '') : ''
   const rolesDisponibles: Rol[] = esAdministrador ? ROLES_VALIDOS : ['asesor_tecnico']
+  const rolesFiltrables: Rol[] = esIntegrante ? ['asesor_tecnico'] : ROLES_VALIDOS
 
   const cargar = useCallback(() => {
     setCargando(true)
@@ -541,7 +542,7 @@ export function Usuarios() {
       .listar({
         page: pagina,
         limit: 20,
-        ...(filtroRol ? { rol: filtroRol as Rol } : {}),
+        ...((esIntegrante ? 'asesor_tecnico' : filtroRol) ? { rol: (esIntegrante ? 'asesor_tecnico' : filtroRol) as Rol } : {}),
         ...(filtroActivo !== '' ? { activo: filtroActivo === 'true' } : {}),
         ...(busqueda ? { q: busqueda } : {}),
         ...(organismoFijo ? { dgId: organismoFijo } : {}),
@@ -552,7 +553,7 @@ export function Usuarios() {
       })
       .catch((err) => setErrorMsg(mensajeDeError(err)))
       .finally(() => setCargando(false))
-  }, [pagina, filtroRol, filtroActivo, busqueda, organismoFijo])
+  }, [pagina, filtroRol, filtroActivo, busqueda, organismoFijo, esIntegrante])
 
   useEffect(() => { cargar() }, [cargar])
 
@@ -590,7 +591,7 @@ export function Usuarios() {
             <p className="text-sm text-gray-500 mt-1">Vista de solo consulta para todos los organismos.</p>
           )}
           {esIntegrante && (
-            <p className="text-sm text-gray-500 mt-1">Puede administrar únicamente asesores técnicos de su organismo.</p>
+            <p className="text-sm text-gray-500 mt-1">Solo se muestran asesores técnicos del organismo al que pertenece.</p>
           )}
         </div>
         {(esAdministrador || esIntegrante) && (
@@ -609,12 +610,13 @@ export function Usuarios() {
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Rol</label>
             <select
+              disabled={esIntegrante}
               className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
-              value={filtroRol}
+              value={esIntegrante ? 'asesor_tecnico' : filtroRol}
               onChange={(e) => { setFiltroRol(e.target.value); setPagina(1) }}
             >
-              <option value="">Todos</option>
-              {ROLES_VALIDOS.map((rol) => (
+              {!esIntegrante && <option value="">Todos</option>}
+              {rolesFiltrables.map((rol) => (
                 <option key={rol} value={rol}>{ETIQUETA_ROL[rol]}</option>
               ))}
             </select>

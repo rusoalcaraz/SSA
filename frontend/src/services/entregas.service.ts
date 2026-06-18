@@ -63,12 +63,29 @@ async function subirDocumento(
 
 async function proponerRecibida(
   procedimientoId: string,
-  entregaId: string
+  entregaId: string,
+  archivo?: File
 ): Promise<Entrega> {
+  const form = new FormData()
+  if (archivo) form.append('archivo', archivo)
   const { data } = await api.patch<ApiResponse<Entrega>>(
-    `${base(procedimientoId)}/${entregaId}/proponer-recibida`
+    `${base(procedimientoId)}/${entregaId}/proponer-recibida`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
   )
   return data.data
+}
+
+async function obtenerEvidencia(
+  procedimientoId: string,
+  entregaId: string,
+  archivoId: string
+): Promise<string> {
+  const response = await api.get(
+    `${base(procedimientoId)}/${entregaId}/evidencia/${archivoId}`,
+    { responseType: 'blob' }
+  )
+  return URL.createObjectURL(response.data as Blob)
 }
 
 async function validarEntrega(
@@ -83,4 +100,4 @@ async function validarEntrega(
   return data.data
 }
 
-export const entregasService = { listar, crear, actualizar, subirDocumento, proponerRecibida, validarEntrega }
+export const entregasService = { listar, crear, actualizar, subirDocumento, proponerRecibida, validarEntrega, obtenerEvidencia }

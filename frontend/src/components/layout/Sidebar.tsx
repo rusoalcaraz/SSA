@@ -27,6 +27,16 @@ function Icono({ nombre, className }: { nombre: string; className?: string }) {
           <path d="M8 14h8M8 18h5" />
         </svg>
       )
+    case 'timeline':
+      return (
+        <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M4 6h5M15 6h5M12 6h.01M7 12h10M4 18h5M15 18h5M12 18h.01" />
+          <circle cx="12" cy="6" r="2" />
+          <circle cx="7" cy="12" r="2" />
+          <circle cx="17" cy="12" r="2" />
+          <circle cx="12" cy="18" r="2" />
+        </svg>
+      )
     case 'mis':
       return (
         <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -74,19 +84,20 @@ function NavItems({ colapsado }: { colapsado: boolean }) {
 
   const items: NavItem[] = []
 
-  if (tieneRol('administrador', 'oficialia_mayor', 'dir_gral_admon')) {
+  if (tieneRol('administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones')) {
     items.push({ to: '/dashboard', label: 'Dashboard', icon: 'dashboard' })
+    items.push({ to: '/linea-del-tiempo', label: 'Línea del tiempo', icon: 'timeline' })
   }
   if (tieneRol('asesor_tecnico')) {
     items.push({ to: '/mis-procedimientos', label: 'Mis procedimientos', icon: 'mis' })
+    items.push({ to: '/linea-del-tiempo', label: 'Línea del tiempo', icon: 'timeline' })
   }
   if (
     tieneRol(
       'administrador',
       'oficialia_mayor',
       'dir_gral_admon',
-      'integrante_adquisiciones',
-      'asesor_tecnico'
+      'integrante_adquisiciones'
     )
   ) {
     items.push({ to: '/procedimientos', label: 'Procedimientos', icon: 'procedimientos' })

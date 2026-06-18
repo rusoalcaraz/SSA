@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ApiResponse, EtapaActual, TipoProcedimiento } from '../types'
+import type { ApiResponse, EtapaActual, Paginacion, Procedimiento, TipoProcedimiento } from '../types'
 
 export interface ResumenDashboard {
   totalProcedimientos: number
@@ -47,4 +47,20 @@ async function kpiDetalle(tipo: TipoKPI, anioFiscal?: number): Promise<Procedimi
   return data.data
 }
 
-export const dashboardService = { resumen, kpiDetalle }
+async function misProcedimientos(params: {
+  page?: number
+  limit?: number
+  anioFiscal?: number
+  q?: string
+  tipoProcedimiento?: TipoProcedimiento
+  dgId?: string
+  asesorTitularQ?: string
+} = {}): Promise<{ procedimientos: Procedimiento[]; pagination: Paginacion }> {
+  const { data } = await api.get<ApiResponse<Procedimiento[]> & { pagination: Paginacion }>(
+    '/dashboard/mis-procedimientos',
+    { params }
+  )
+  return { procedimientos: data.data, pagination: data.pagination! }
+}
+
+export const dashboardService = { resumen, kpiDetalle, misProcedimientos }

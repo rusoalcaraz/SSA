@@ -41,6 +41,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
   const [motivoInput, setMotivoInput] = useState('')
   const [respuestaInput, setRespuestaInput] = useState<'aceptar' | 'rechazar' | ''>('')
   const [observacionInput, setObservacionInput] = useState('')
+  const [archivoEvidencia, setArchivoEvidencia] = useState<File | null>(null)
 
   function abrirModal(accion: AccionModal) {
     setModal(accion)
@@ -49,6 +50,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
     setMotivoInput('')
     setRespuestaInput('')
     setObservacionInput('')
+    setArchivoEvidencia(null)
     const cont = document.getElementById('app-scroll')
     scrollYRef.current = cont ? cont.scrollTop : window.scrollY
   }
@@ -193,6 +195,28 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                         </span>
                       )}
                     </div>
+                    {etapa.evidencias && etapa.evidencias.length > 0 && (
+                      <div className="flex gap-2 flex-wrap mt-1.5">
+                        {etapa.evidencias.map((ev) => (
+                          <button
+                            key={ev._id}
+                            onClick={async () => {
+                              try {
+                                const url = await etapasService.obtenerEvidencia(procedimiento._id, etapa._id, ev._id)
+                                window.open(url, '_blank')
+                              } catch { /* ignore */ }
+                            }}
+                            className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 underline"
+                            title="Ver evidencia"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                            </svg>
+                            {ev.nombre}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -332,11 +356,25 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
             ¿Confirmas que la etapa <strong>"{modal.etapa.nombre}"</strong> ha sido concluida?
             El integrante de adquisiciones deberá validar esta acción antes de que se refleje como completada.
           </p>
+          <div className="flex flex-col gap-1 mb-4">
+            <label className="text-sm font-medium text-gray-700">
+              Cargar evidencia <span className="text-gray-400 font-normal">(PDF, opcional)</span>
+            </label>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setArchivoEvidencia(e.target.files?.[0] ?? null)}
+              className="text-sm text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200"
+            />
+            {archivoEvidencia && (
+              <p className="text-xs text-gray-500 mt-0.5">{archivoEvidencia.name}</p>
+            )}
+          </div>
           {errorModal && <p className="text-sm text-red-600 mb-3">{errorModal}</p>}
           <div className="flex gap-3">
             <button
               onClick={() =>
-                ejecutar(() => etapasService.completar(procedimiento._id, modal.etapa._id))
+                ejecutar(() => etapasService.completar(procedimiento._id, modal.etapa._id, archivoEvidencia ?? undefined))
               }
               disabled={enviando}
               className="flex-1 py-2 bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
@@ -359,9 +397,33 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
             <strong>"{modal.etapa.nombre}"</strong> ha concluido.
           </p>
           {modal.etapa.propuestoPor && (
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-xs text-gray-400 mb-2">
               Propuesto por: {modal.etapa.propuestoPor.nombre} {modal.etapa.propuestoPor.apellidos}
             </p>
+          )}
+          {modal.etapa.evidencias && modal.etapa.evidencias.length > 0 && (
+            <div className="mb-4 p-3 bg-blue-50 rounded-md">
+              <p className="text-xs font-medium text-blue-700 mb-1.5">Evidencia adjunta:</p>
+              <div className="flex gap-2 flex-wrap">
+                {modal.etapa.evidencias.map((ev) => (
+                  <button
+                    key={ev._id}
+                    onClick={async () => {
+                      try {
+                        const url = await etapasService.obtenerEvidencia(procedimiento._id, modal.etapa._id, ev._id)
+                        window.open(url, '_blank')
+                      } catch { /* ignore */ }
+                    }}
+                    className="inline-flex items-center gap-1 text-xs text-blue-700 underline hover:text-blue-900"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                    </svg>
+                    {ev.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
           <p className="text-sm font-medium text-gray-800 mb-3">¿Se concluyó con la actividad?</p>
           {errorModal && <p className="text-sm text-red-600 mb-3">{errorModal}</p>}

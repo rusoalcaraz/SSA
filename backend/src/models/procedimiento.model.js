@@ -136,6 +136,15 @@ const etapaProcedimientoSchema = new mongoose.Schema(
     propuestoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     propuestoEn: Date,
     estadoAnteriorPropuesta: String,
+
+    evidencias: [
+      {
+        nombre: String,
+        ruta: String,
+        cargadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
+        cargadaEn: { type: Date, default: Date.now },
+      },
+    ],
   },
   { _id: true }
 );
@@ -181,6 +190,15 @@ const entregaSchema = new mongoose.Schema(
     registradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     propuestoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     propuestoEn: Date,
+
+    evidencias: [
+      {
+        nombre: String,
+        ruta: String,
+        cargadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
+        cargadaEn: { type: Date, default: Date.now },
+      },
+    ],
   },
   { _id: true }
 );

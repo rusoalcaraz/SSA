@@ -97,6 +97,14 @@ async function completar(req, res, next) {
     etapa.propuestoPor = req.usuario.id;
     etapa.propuestoEn = new Date();
 
+    if (req.file) {
+      etapa.evidencias.push({
+        nombre: req.file.originalname,
+        ruta: req.file.path,
+        cargadoPor: req.usuario.id,
+      });
+    }
+
     await procedimiento.save();
 
     await auditLog.registrar({
@@ -481,6 +489,33 @@ async function marcarNoAplica(req, res, next) {
   }
 }
 
+// -------------------------------------------------------
+// GET /:id/etapas/:etapaId/evidencia/:archivoId
+// Sirve el archivo de evidencia PDF a cualquier usuario con acceso al procedimiento.
+// -------------------------------------------------------
+async function obtenerEvidencia(req, res, next) {
+  try {
+    const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
+
+    const { rol, id: usuarioId, dgId } = req.usuario;
+    if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
+    }
+    if (rol === 'integrante_adquisiciones' && !perteneceAlMismoOrganismo(procedimiento, dgId)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otro organismo');
+    }
+
+    const evidencia = etapa.evidencias.id(req.params.archivoId);
+    if (!evidencia) {
+      throw crearError(404, 'ARCHIVO_NO_ENCONTRADO', 'Archivo de evidencia no encontrado');
+    }
+
+    return res.sendFile(path.resolve(evidencia.ruta));
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   completar,
   validarCompletado,
@@ -490,4 +525,5 @@ module.exports = {
   agregarObservacion,
   subirArchivo,
   marcarNoAplica,
+  obtenerEvidencia,
 };

@@ -52,7 +52,9 @@ async function listar(req, res, next) {
     const { rol, activo, dgId, q } = req.query;
     const filtro = {};
 
-    if (rol) {
+    if (esIntegrante(req.usuario)) {
+      filtro.rol = 'asesor_tecnico';
+    } else if (rol) {
       if (!ROLES.includes(rol)) throw crearError(400, 'ROL_INVALIDO', `Rol no valido: ${rol}`);
       filtro.rol = rol;
     }
@@ -109,7 +111,7 @@ async function obtener(req, res, next) {
     if (!usuario) throw crearError(404, 'USUARIO_NO_ENCONTRADO', 'Usuario no encontrado');
     if (esIntegrante(req.usuario)) {
       const organismoId = validarOrganismoSolicitante(req.usuario);
-      if (!mismoOrganismo(usuario, organismoId)) {
+      if (!puedeGestionarUsuarioComoIntegrante(usuario, organismoId)) {
         throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede consultar usuarios de su propio organismo');
       }
     }

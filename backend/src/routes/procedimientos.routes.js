@@ -3,7 +3,7 @@
 const { Router } = require('express');
 const { verifyToken, checkRole, actualizarActividad } = require('../middleware/auth');
 const { limitarPorUsuario } = require('../middleware/rateLimiters');
-const { uploadObservacion, uploadEntrega, uploadJustificacion } = require('../middleware/upload');
+const { uploadObservacion, uploadEntrega, uploadJustificacion, uploadEvidencia, uploadEvidenciaEntrega } = require('../middleware/upload');
 
 const procCtrl = require('../controllers/procedimientos/procedimientos.controller');
 const etapasCtrl = require('../controllers/procedimientos/etapas.controller');
@@ -123,7 +123,14 @@ router.post(
 router.patch(
   '/:id/etapas/:etapaId/completar',
   checkRole(['administrador', 'asesor_tecnico']),
+  uploadEvidencia.single('archivo'),
   etapasCtrl.completar
+);
+
+router.get(
+  '/:id/etapas/:etapaId/evidencia/:archivoId',
+  checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones', 'asesor_tecnico']),
+  etapasCtrl.obtenerEvidencia
 );
 
 router.patch(
@@ -199,7 +206,14 @@ router.put(
 router.patch(
   '/:id/entregas/:entregaId/proponer-recibida',
   checkRole(['administrador', 'asesor_tecnico']),
+  uploadEvidenciaEntrega.single('archivo'),
   entregasCtrl.proponerRecibida
+);
+
+router.get(
+  '/:id/entregas/:entregaId/evidencia/:archivoId',
+  checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones', 'asesor_tecnico']),
+  entregasCtrl.obtenerEvidenciaEntrega
 );
 
 router.patch(

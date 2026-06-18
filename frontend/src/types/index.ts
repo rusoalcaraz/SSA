@@ -82,6 +82,14 @@ export type EstadoEtapa =
   | 'fecha_rechazada'
   | 'completado_propuesto'
 
+export interface EvidenciaArchivo {
+  _id: string
+  nombre: string
+  ruta: string
+  cargadoPor?: UsuarioResumen
+  cargadaEn: string
+}
+
 // -------------------------------------------------------
 // Sub-tipos de procedimiento
 // -------------------------------------------------------
@@ -121,6 +129,7 @@ export interface EtapaProcedimiento {
   completadoEn?: string
   propuestoPor?: UsuarioResumen
   propuestoEn?: string
+  evidencias?: EvidenciaArchivo[]
 }
 
 export interface InfoCronograma {
@@ -176,6 +185,7 @@ export interface Entrega {
   registradoPor?: UsuarioResumen
   propuestoPor?: UsuarioResumen
   propuestoEn?: string
+  evidencias?: EvidenciaArchivo[]
 }
 
 export interface ArchivoAdjunto {

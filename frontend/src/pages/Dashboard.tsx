@@ -4,6 +4,7 @@ import { dashboardService, type ResumenDashboard, type TipoKPI, type Procedimien
 import { mensajeDeError } from '../services/api'
 import { Spinner } from '../components/ui/Spinner'
 import { Modal } from '../components/ui/Modal'
+import { useAuth } from '../hooks/useAuth'
 import { ETIQUETA_ETAPA, ETIQUETA_TIPO } from '../utils/formato'
 import type { EtapaActual, TipoProcedimiento } from '../types'
 
@@ -267,6 +268,7 @@ const TITULO_KPI: Record<TipoKPI, string> = {
 
 export function Dashboard() {
   const navigate = useNavigate()
+  const { tieneRol } = useAuth()
   const [resumen, setResumen] = useState<ResumenDashboard | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -304,6 +306,7 @@ export function Dashboard() {
 
   const anioActual = new Date().getFullYear()
   const aniosOpciones = Array.from({ length: 5 }, (_, i) => anioActual - i)
+  const esIntegrante = tieneRol('integrante_adquisiciones')
 
   // Datos gráfica donut — etapas
   const datosEtapa: DonutSlice[] = resumen
@@ -340,8 +343,14 @@ export function Dashboard() {
         style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1d4ed8 100%)' }}
       >
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Resumen Ejecutivo</h1>
-          <p className="text-blue-300 text-sm mt-0.5">Sistema de Seguimiento de Adquisiciones</p>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight">
+            {esIntegrante ? 'Dashboard del Organismo' : 'Resumen Ejecutivo'}
+          </h1>
+          <p className="text-blue-300 text-sm mt-0.5">
+            {esIntegrante
+              ? 'Resumen de procedimientos y alertas del organismo asignado'
+              : 'Sistema de Seguimiento de Adquisiciones'}
+          </p>
         </div>
         <select
           value={anioFiscal}
@@ -530,7 +539,7 @@ export function Dashboard() {
           </div>
 
           {/* ── Gráfica DGs ── */}
-          {datosDG.length > 0 && (
+          {!esIntegrante && datosDG.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-5">
                 Procedimientos por Dirección General
@@ -541,7 +550,7 @@ export function Dashboard() {
           )}
 
           {/* ── Tabla detalle DGs ── */}
-          {datosDG.length > 0 && (
+          {!esIntegrante && datosDG.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4">
                 Detalle por Dirección General

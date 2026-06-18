@@ -380,6 +380,76 @@ function ModalSubirDocumento({
 }
 
 // -------------------------------------------------------
+// Sub-modal: proponer recibida (AT) con carga de evidencia
+// -------------------------------------------------------
+function ModalProponerRecibida({
+  procedimientoId,
+  entrega,
+  onGuardado,
+  onClose,
+}: {
+  procedimientoId: string
+  entrega: Entrega
+  onGuardado: () => void
+  onClose: () => void
+}) {
+  const [archivo, setArchivo] = useState<File | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setEnviando(true)
+    setErrorMsg(null)
+    try {
+      await entregasService.proponerRecibida(procedimientoId, entrega._id, archivo ?? undefined)
+      onGuardado()
+    } catch (err) {
+      setErrorMsg(mensajeDeError(err))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <Modal titulo="Proponer entrega recibida" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <p className="text-sm text-gray-600 mb-4">
+          ¿Confirmas que la entrega <strong>"{entrega.descripcion}"</strong> fue recibida?
+          El integrante de adquisiciones deberá validarlo.
+        </p>
+        <div className="flex flex-col gap-1 mb-4">
+          <label className="text-sm font-medium text-gray-700">
+            Cargar evidencia <span className="text-gray-400 font-normal">(PDF, opcional)</span>
+          </label>
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+            className="text-sm text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200"
+          />
+          {archivo && <p className="text-xs text-gray-500 mt-0.5">{archivo.name}</p>}
+        </div>
+        {errorMsg && <p className="text-sm text-red-600 mb-3">{errorMsg}</p>}
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={enviando}
+            className="flex-1 py-2 bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+          >
+            {enviando && <Spinner className="h-4 w-4 text-white" />}
+            Proponer
+          </button>
+          <button type="button" onClick={onClose} disabled={enviando} className="flex-1 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+// -------------------------------------------------------
 // Modal de validación IA
 // -------------------------------------------------------
 function ModalValidarEntrega({
@@ -416,9 +486,34 @@ function ModalValidarEntrega({
         <strong className="text-gray-800">"{entrega.descripcion}"</strong> fue recibida.
       </p>
       {entrega.propuestoPor && (
-        <p className="text-xs text-gray-400 mb-4">
+        <p className="text-xs text-gray-400 mb-2">
           Propuesto por: {entrega.propuestoPor.nombre} {entrega.propuestoPor.apellidos}
         </p>
+      )}
+      {entrega.evidencias && entrega.evidencias.length > 0 && (
+        <div className="mb-4 p-3 bg-blue-50 rounded-md">
+          <p className="text-xs font-medium text-blue-700 mb-1.5">Evidencia adjunta:</p>
+          <div className="flex gap-2 flex-wrap">
+            {entrega.evidencias.map((ev) => (
+              <button
+                key={ev._id}
+                type="button"
+                onClick={async () => {
+                  try {
+                    const url = await entregasService.obtenerEvidencia(procedimientoId, entrega._id, ev._id)
+                    window.open(url, '_blank')
+                  } catch { /* ignore */ }
+                }}
+                className="inline-flex items-center gap-1 text-xs text-blue-700 underline hover:text-blue-900"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                </svg>
+                {ev.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
       <p className="text-sm font-medium text-gray-800 mb-3">¿Se concluyó con la actividad?</p>
       {errorMsg && <p className="text-sm text-red-600 mb-3">{errorMsg}</p>}
@@ -470,21 +565,7 @@ function FilaEntrega({
   const [modalEditar, setModalEditar] = useState(false)
   const [modalDocumento, setModalDocumento] = useState<string | null>(null)
   const [modalValidar, setModalValidar] = useState(false)
-  const [proponiendo, setProponiendo] = useState(false)
-  const [errorPropuesta, setErrorPropuesta] = useState<string | null>(null)
-
-  async function handleProponerRecibida() {
-    setProponiendo(true)
-    setErrorPropuesta(null)
-    try {
-      await entregasService.proponerRecibida(procedimientoId, entrega._id)
-      onActualizar()
-    } catch (err) {
-      setErrorPropuesta(mensajeDeError(err))
-    } finally {
-      setProponiendo(false)
-    }
-  }
+  const [modalProponer, setModalProponer] = useState(false)
 
   return (
     <>
@@ -551,8 +632,33 @@ function FilaEntrega({
               )}
             </div>
 
-            {errorPropuesta && (
-              <p className="text-xs text-red-600">{errorPropuesta}</p>
+            {/* Evidencias */}
+            {entrega.evidencias && entrega.evidencias.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                  Evidencias ({entrega.evidencias.length})
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  {entrega.evidencias.map((ev) => (
+                    <button
+                      key={ev._id}
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const url = await entregasService.obtenerEvidencia(procedimientoId, entrega._id, ev._id)
+                          window.open(url, '_blank')
+                        } catch { /* ignore */ }
+                      }}
+                      className="inline-flex items-center gap-1 text-xs text-blue-700 underline hover:text-blue-900"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                      </svg>
+                      {ev.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* Acciones */}
@@ -560,11 +666,9 @@ function FilaEntrega({
               {puedeProponer && entrega.estado === 'pendiente' && (
                 <button
                   type="button"
-                  onClick={handleProponerRecibida}
-                  disabled={proponiendo}
-                  className="px-3 py-1.5 text-xs rounded border border-purple-200 text-purple-800 hover:bg-purple-50 transition-colors flex items-center gap-1.5"
+                  onClick={() => setModalProponer(true)}
+                  className="px-3 py-1.5 text-xs rounded border border-purple-200 text-purple-800 hover:bg-purple-50 transition-colors"
                 >
-                  {proponiendo && <Spinner className="h-3 w-3 text-purple-700" />}
                   Proponer recibida
                 </button>
               )}
@@ -600,6 +704,17 @@ function FilaEntrega({
         )}
       </div>
 
+      {modalProponer && (
+        <ModalProponerRecibida
+          procedimientoId={procedimientoId}
+          entrega={entrega}
+          onGuardado={() => {
+            setModalProponer(false)
+            onActualizar()
+          }}
+          onClose={() => setModalProponer(false)}
+        />
+      )}
       {modalEditar && (
         <ModalEditarEntrega
           procedimientoId={procedimientoId}

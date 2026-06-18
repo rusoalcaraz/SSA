@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { useAuth } from './hooks/useAuth'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { AppLayout } from './components/layout/AppLayout'
 
@@ -8,6 +9,7 @@ import { SinAcceso } from './pages/SinAcceso'
 import { Dashboard } from './pages/Dashboard'
 
 import { ListaProcedimientos } from './pages/procedimientos/ListaProcedimientos'
+import { LineaDelTiempo } from './pages/procedimientos/LineaDelTiempo'
 import { NuevoProcedimiento } from './pages/procedimientos/NuevoProcedimiento'
 import { DetalleProcedimiento } from './pages/procedimientos/DetalleProcedimiento'
 import { Cronograma } from './pages/procedimientos/Cronograma'
@@ -17,6 +19,20 @@ import { Entregas } from './pages/procedimientos/Entregas'
 import { Reportes } from './pages/Reportes'
 import { Usuarios } from './pages/admin/Usuarios'
 import { DireccionesGenerales } from './pages/admin/DireccionesGenerales'
+
+function InicioRedirect() {
+  const { tieneRol } = useAuth()
+
+  if (tieneRol('administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones')) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  if (tieneRol('asesor_tecnico')) {
+    return <Navigate to="/linea-del-tiempo" replace />
+  }
+
+  return <Navigate to="/procedimientos" replace />
+}
 
 export default function App() {
   return (
@@ -32,12 +48,12 @@ export default function App() {
             <Route element={<AppLayout />}>
 
               {/* Redireccion raiz */}
-              <Route index element={<Navigate to="/procedimientos" replace />} />
+              <Route index element={<InicioRedirect />} />
 
               {/* Dashboard global */}
               <Route
                 path="dashboard"
-                element={<ProtectedRoute roles={['administrador', 'oficialia_mayor', 'dir_gral_admon']} />}
+                element={<ProtectedRoute roles={['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones']} />}
               >
                 <Route index element={<Dashboard />} />
               </Route>
@@ -83,6 +99,13 @@ export default function App() {
                 }
               >
                 <Route index element={<ListaProcedimientos />} />
+              </Route>
+
+              <Route
+                path="linea-del-tiempo"
+                element={<ProtectedRoute roles={['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones', 'asesor_tecnico']} />}
+              >
+                <Route index element={<LineaDelTiempo />} />
               </Route>
 
               {/* Reportes */}

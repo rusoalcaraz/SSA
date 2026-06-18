@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const { Procedimiento } = require('../../models/procedimiento.model');
 const { crearError } = require('../../middleware/errorHandler');
 const { ok, creado } = require('../../utils/respuesta');
@@ -216,6 +217,14 @@ async function proponerRecibida(req, res, next) {
     entrega.propuestoPor = req.usuario.id;
     entrega.propuestoEn = new Date();
 
+    if (req.file) {
+      entrega.evidencias.push({
+        nombre: req.file.originalname,
+        ruta: req.file.path,
+        cargadoPor: req.usuario.id,
+      });
+    }
+
     await procedimiento.save();
 
     await auditLog.registrar({
@@ -294,4 +303,41 @@ async function validarEntrega(req, res, next) {
   }
 }
 
-module.exports = { listar, crear, actualizar, subirDocumento, proponerRecibida, validarEntrega };
+// -------------------------------------------------------
+// GET /:id/entregas/:entregaId/evidencia/:archivoId
+// Sirve el archivo de evidencia PDF de una entrega.
+// -------------------------------------------------------
+async function obtenerEvidenciaEntrega(req, res, next) {
+  try {
+    const procedimiento = await Procedimiento.findById(req.params.id)
+      .select('entregas direccionGeneral asesorTitular asesorSuplente');
+
+    if (!procedimiento) {
+      throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    const { rol, id: usuarioId, dgId } = req.usuario;
+    if (rol === 'asesor_tecnico' && !esMiProcedimiento(procedimiento, usuarioId)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
+    }
+    if (rol === 'integrante_adquisiciones' && !perteneceAlMismoOrganismo(procedimiento, dgId)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Este procedimiento pertenece a otro organismo');
+    }
+
+    const entrega = procedimiento.entregas.id(req.params.entregaId);
+    if (!entrega) {
+      throw crearError(404, 'ENTREGA_NO_ENCONTRADA', 'Entrega no encontrada');
+    }
+
+    const evidencia = entrega.evidencias.id(req.params.archivoId);
+    if (!evidencia) {
+      throw crearError(404, 'ARCHIVO_NO_ENCONTRADO', 'Archivo de evidencia no encontrado');
+    }
+
+    return res.sendFile(path.resolve(evidencia.ruta));
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { listar, crear, actualizar, subirDocumento, proponerRecibida, validarEntrega, obtenerEvidenciaEntrega };

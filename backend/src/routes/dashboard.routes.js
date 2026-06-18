@@ -12,7 +12,7 @@ router.use(verifyToken, actualizarActividad, limitarPorUsuario);
 // GET /api/v1/dashboard/resumen
 router.get(
   '/resumen',
-  checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon']),
+  checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones']),
   ctrl.resumen
 );
 
@@ -26,14 +26,14 @@ router.get(
 // GET /api/v1/dashboard/mis-procedimientos
 router.get(
   '/mis-procedimientos',
-  checkRole(['administrador', 'integrante_adquisiciones', 'asesor_tecnico']),
+  checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones', 'asesor_tecnico']),
   ctrl.misProcedimientos
 );
 
 // GET /api/v1/dashboard/kpi-detalle
 router.get(
   '/kpi-detalle',
-  checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon']),
+  checkRole(['administrador', 'oficialia_mayor', 'dir_gral_admon', 'integrante_adquisiciones']),
   ctrl.kpiDetalle
 );
 
