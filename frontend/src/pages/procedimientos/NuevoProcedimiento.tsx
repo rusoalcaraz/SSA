@@ -125,7 +125,10 @@ export function NuevoProcedimiento() {
         setSecciones(secData)
         setBienesServicios(bsData)
         setAsesores(asData)
-        if (!direccionGeneral && dgData.length === 1) setDireccionGeneral(dgData[0]._id)
+        if (dgData.length > 0) {
+          setDireccionGeneral(dgData[0]._id)
+          setInfoCronograma((v) => ({ ...v, organismo: dgData[0].siglas || dgData[0].nombre }))
+        }
       } catch {
         setError('No se pudieron cargar los catalogos. Recargue la pagina.')
       } finally {
@@ -154,10 +157,6 @@ export function NuevoProcedimiento() {
     }
     if (!tipoProcedimiento) {
       setError('Seleccione el tipo de procedimiento.')
-      return
-    }
-    if (!direccionGeneral) {
-      setError('Seleccione la Dirección General.')
       return
     }
     if (!seccionId) {
@@ -268,55 +267,33 @@ export function NuevoProcedimiento() {
                 disabled={enviando}
               />
             </Campo>
-            <Campo label="Dirección General" requerido>
+            <Campo label="Sección" requerido>
               <select
                 required
-                value={direccionGeneral}
+                value={seccionId}
                 onChange={(e) => {
-                  const val = e.target.value
-                  setDireccionGeneral(val)
+                  setSeccionId(e.target.value)
                   setAsesorTitular('')
                   setAsesorSuplente('')
-                  const dg = dgs.find((x) => x._id === val)
-                  if (dg) {
-                    setInfoCronograma((v) => ({ ...v, organismo: dg.siglas || dg.nombre }))
-                  } else {
-                    setInfoCronograma((v) => ({ ...v, organismo: '' }))
-                  }
                 }}
                 className={SELECT}
-                disabled={enviando || dgs.length === 1}
+                disabled={enviando}
               >
-                <option value="">Seleccionar organismo</option>
-                {dgs.map((dg) => (
-                  <option key={dg._id} value={dg._id}>
-                    {dg.siglas} — {dg.nombre}
+                <option value="">Seleccionar sección</option>
+                {secciones.map((sec) => (
+                  <option key={sec._id} value={sec._id}>
+                    {sec.nombre}
                   </option>
                 ))}
               </select>
+              {seccionId && (() => {
+                const sec = secciones.find((s) => s._id === seccionId)
+                return sec?.subdireccion?.nombre ? (
+                  <p className="text-xs text-gray-400 mt-1">Subdirección: {sec.subdireccion.nombre}</p>
+                ) : null
+              })()}
             </Campo>
           </div>
-
-          <Campo label="Sección" requerido>
-            <select
-              required
-              value={seccionId}
-              onChange={(e) => {
-                setSeccionId(e.target.value)
-                setAsesorTitular('')
-                setAsesorSuplente('')
-              }}
-              className={SELECT}
-              disabled={enviando}
-            >
-              <option value="">Seleccionar sección</option>
-              {secciones.map((sec) => (
-                <option key={sec._id} value={sec._id}>
-                  {sec.subdireccion?.nombre} — {sec.nombre}
-                </option>
-              ))}
-            </select>
-          </Campo>
 
           <Campo label="Descripcion" ayuda="Opcional. Contexto adicional sobre el procedimiento.">
             <textarea
@@ -716,7 +693,7 @@ export function NuevoProcedimiento() {
         <div className="flex items-center gap-3 pb-8">
           <button
             type="submit"
-            disabled={enviando || !titulo || !bienServicio || !direccionGeneral || !seccionId || !asesorTitular || !tipoProcedimiento}
+            disabled={enviando || !titulo || !bienServicio || !seccionId || !asesorTitular || !tipoProcedimiento}
             className="px-5 py-2.5 bg-blue-900 hover:bg-blue-800 disabled:bg-blue-300 text-white text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2"
           >
             {enviando && <Spinner className="text-white h-4 w-4" />}

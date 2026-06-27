@@ -86,11 +86,9 @@ function NavItems({ colapsado }: { colapsado: boolean }) {
 
   if (tieneRol('administrador', 'adquisiciones', 'subdirector', 'jefe_seccion')) {
     items.push({ to: '/dashboard', label: 'Dashboard', icon: 'dashboard' })
-    items.push({ to: '/linea-del-tiempo', label: 'Línea del tiempo', icon: 'timeline' })
   }
   if (tieneRol('asesor_tecnico')) {
     items.push({ to: '/mis-procedimientos', label: 'Mis procedimientos', icon: 'mis' })
-    items.push({ to: '/linea-del-tiempo', label: 'Línea del tiempo', icon: 'timeline' })
   }
   if (
     tieneRol(

@@ -68,6 +68,10 @@ async function desactivarSubdireccion(id: string): Promise<void> {
   await api.delete(`/catalogos/subdirecciones/${id}`)
 }
 
+async function eliminarSubdireccion(id: string): Promise<void> {
+  await api.delete(`/catalogos/subdirecciones/${id}/eliminar`)
+}
+
 // -------------------------------------------------------
 // Secciones
 // -------------------------------------------------------
@@ -91,6 +95,10 @@ async function actualizarSeccion(id: string, payload: { nombre?: string; activa?
 
 async function desactivarSeccion(id: string): Promise<void> {
   await api.delete(`/catalogos/secciones/${id}`)
+}
+
+async function eliminarSeccion(id: string): Promise<void> {
+  await api.delete(`/catalogos/secciones/${id}/eliminar`)
 }
 
 // -------------------------------------------------------
@@ -210,10 +218,12 @@ export const catalogosService = {
   crearSubdireccion,
   actualizarSubdireccion,
   desactivarSubdireccion,
+  eliminarSubdireccion,
   listarSecciones,
   crearSeccion,
   actualizarSeccion,
   desactivarSeccion,
+  eliminarSeccion,
   listarBienesServicios,
   listarTodosBienesServicios,
   crearBienServicio,

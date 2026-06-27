@@ -9,7 +9,6 @@ import { SinAcceso } from './pages/SinAcceso'
 import { Dashboard } from './pages/Dashboard'
 
 import { ListaProcedimientos } from './pages/procedimientos/ListaProcedimientos'
-import { LineaDelTiempo } from './pages/procedimientos/LineaDelTiempo'
 import { NuevoProcedimiento } from './pages/procedimientos/NuevoProcedimiento'
 import { DetalleProcedimiento } from './pages/procedimientos/DetalleProcedimiento'
 import { Cronograma } from './pages/procedimientos/Cronograma'
@@ -28,7 +27,7 @@ function InicioRedirect() {
   }
 
   if (tieneRol('asesor_tecnico')) {
-    return <Navigate to="/linea-del-tiempo" replace />
+    return <Navigate to="/mis-procedimientos" replace />
   }
 
   return <Navigate to="/procedimientos" replace />
@@ -103,10 +102,8 @@ export default function App() {
 
               <Route
                 path="linea-del-tiempo"
-                element={<ProtectedRoute roles={['administrador', 'adquisiciones', 'subdirector', 'jefe_seccion', 'asesor_tecnico']} />}
-              >
-                <Route index element={<LineaDelTiempo />} />
-              </Route>
+                element={<Navigate to="/procedimientos" replace />}
+              />
 
               {/* Reportes */}
               <Route

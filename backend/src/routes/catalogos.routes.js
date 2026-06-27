@@ -79,6 +79,8 @@ router
   .put(checkRole(['administrador']), subCtrl.actualizar)
   .delete(checkRole(['administrador']), subCtrl.desactivar);
 
+router.delete('/subdirecciones/:id/eliminar', checkRole(['administrador']), subCtrl.eliminar);
+
 // -------------------------------------------------------
 // Secciones — /api/v1/catalogos/secciones
 // -------------------------------------------------------
@@ -110,6 +112,8 @@ router
   )
   .put(checkRole(['administrador', 'subdirector']), secCtrl.actualizar)
   .delete(checkRole(['administrador', 'subdirector']), secCtrl.desactivar);
+
+router.delete('/secciones/:id/eliminar', checkRole(['administrador']), secCtrl.eliminar);
 
 // -------------------------------------------------------
 // Bienes y Servicios — /api/v1/catalogos/bienes-servicios

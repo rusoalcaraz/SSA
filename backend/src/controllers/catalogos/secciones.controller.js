@@ -147,4 +147,14 @@ async function desactivar(req, res, next) {
   }
 }
 
-module.exports = { listar, obtener, crear, actualizar, desactivar };
+async function eliminar(req, res, next) {
+  try {
+    const seccion = await Seccion.findByIdAndDelete(req.params.id);
+    if (!seccion) throw crearError(404, 'SECCION_NO_ENCONTRADA', 'Seccion no encontrada');
+    return ok(res, null, 'Seccion eliminada permanentemente');
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { listar, obtener, crear, actualizar, desactivar, eliminar };

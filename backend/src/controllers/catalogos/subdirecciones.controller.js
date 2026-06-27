@@ -66,4 +66,14 @@ async function desactivar(req, res, next) {
   }
 }
 
-module.exports = { listar, obtener, crear, actualizar, desactivar };
+async function eliminar(req, res, next) {
+  try {
+    const subdireccion = await Subdireccion.findByIdAndDelete(req.params.id);
+    if (!subdireccion) throw crearError(404, 'SUBDIRECCION_NO_ENCONTRADA', 'Subdireccion no encontrada');
+    return ok(res, null, 'Subdireccion eliminada permanentemente');
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { listar, obtener, crear, actualizar, desactivar, eliminar };
