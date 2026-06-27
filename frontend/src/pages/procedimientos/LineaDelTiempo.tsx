@@ -5,7 +5,7 @@ import { dashboardService } from '../../services/dashboard.service'
 import { catalogosService } from '../../services/catalogos.service'
 import { mensajeDeError } from '../../services/api'
 import type {
-  DireccionGeneral,
+  Subdireccion,
   Entrega,
   EtapaActual,
   Paginacion as PaginacionTipo,
@@ -214,7 +214,7 @@ function TarjetaProcedimiento({ procedimiento }: { procedimiento: Procedimiento 
             <h2 className="text-lg font-bold text-slate-900 leading-tight">{procedimiento.titulo}</h2>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
               <span>{ETIQUETA_TIPO[procedimiento.tipoProcedimiento]}</span>
-              <span>{procedimiento.direccionGeneral?.siglas ?? 'Sin organismo'}</span>
+              <span>{typeof procedimiento.seccion === 'object' && procedimiento.seccion ? (procedimiento.seccion as { nombre: string }).nombre : typeof procedimiento.subdireccion === 'object' && procedimiento.subdireccion ? (procedimiento.subdireccion as Subdireccion).nombre : '—'}</span>
               <span>{procedimiento.anioFiscal}</span>
             </div>
           </div>
@@ -318,8 +318,8 @@ export function LineaDelTiempo() {
   const [error, setError] = useState<string | null>(null)
   const [pagina, setPagina] = useState(1)
   const [anioFiscal, setAnioFiscal] = useState('')
-  const [dgs, setDgs] = useState<DireccionGeneral[]>([])
-  const [dgId, setDgId] = useState('')
+  const [subdirecciones, setSubdirecciones] = useState<Subdireccion[]>([])
+  const [subdireccionId, setSubdireccionId] = useState('')
   const [tipoProcedimiento, setTipoProcedimiento] = useState<string>('')
   const [q, setQ] = useState('')
 
@@ -330,13 +330,13 @@ export function LineaDelTiempo() {
 
   useEffect(() => {
     if (!esGlobal) {
-      setDgs([])
-      setDgId('')
+      setSubdirecciones([])
+      setSubdireccionId('')
       return
     }
     catalogosService
-      .listarDGs(true)
-      .then(setDgs)
+      .listarSubdirecciones(true)
+      .then(setSubdirecciones)
       .catch(() => {})
   }, [esGlobal])
 
@@ -351,7 +351,7 @@ export function LineaDelTiempo() {
         ...(anioFiscal ? { anioFiscal: Number(anioFiscal) } : {}),
         ...(q ? { q } : {}),
         ...(tipoProcedimiento ? { tipoProcedimiento: tipoProcedimiento as TipoProcedimiento } : {}),
-        ...(esGlobal && dgId ? { dgId } : {}),
+        ...(esGlobal && subdireccionId ? { subdireccionId } : {}),
       })
       .then(({ procedimientos: lista, pagination }) => {
         setProcedimientos(lista)
@@ -359,7 +359,7 @@ export function LineaDelTiempo() {
       })
       .catch((err) => setError(mensajeDeError(err)))
       .finally(() => setCargando(false))
-  }, [pagina, anioFiscal, q, tipoProcedimiento, dgId, esGlobal])
+  }, [pagina, anioFiscal, q, tipoProcedimiento, subdireccionId, esGlobal])
 
   const anioActual = new Date().getFullYear()
   const aniosOpciones = Array.from({ length: 5 }, (_, index) => anioActual - index)
@@ -409,19 +409,19 @@ export function LineaDelTiempo() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 w-full">
             {esGlobal && (
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">Organismo</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Subdirección</label>
                 <select
-                  value={dgId}
+                  value={subdireccionId}
                   onChange={(event) => {
                     setPagina(1)
-                    setDgId(event.target.value)
+                    setSubdireccionId(event.target.value)
                   }}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
                 >
-                  <option value="">Todos</option>
-                  {dgs.map((dg) => (
-                    <option key={dg._id} value={dg._id}>
-                      {dg.siglas} — {dg.nombre}
+                  <option value="">Todas</option>
+                  {subdirecciones.map((s) => (
+                    <option key={s._id} value={s._id}>
+                      {s.nombre}
                     </option>
                   ))}
                 </select>

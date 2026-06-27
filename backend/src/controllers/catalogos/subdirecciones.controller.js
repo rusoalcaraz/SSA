@@ -39,10 +39,24 @@ async function crear(req, res, next) {
 
 async function actualizar(req, res, next) {
   try {
-    const { nombre, activa } = req.body;
+    const { nombre, activa, esAdquisiciones } = req.body;
+
+    // Si se marca esta como adquisiciones, desmarcar las demas
+    if (esAdquisiciones === true) {
+      await Subdireccion.updateMany(
+        { _id: { $ne: req.params.id } },
+        { $set: { esAdquisiciones: false } }
+      );
+    }
+
+    const updates = {};
+    if (nombre !== undefined) updates.nombre = nombre;
+    if (activa !== undefined) updates.activa = activa;
+    if (esAdquisiciones !== undefined) updates.esAdquisiciones = esAdquisiciones;
+
     const subdireccion = await Subdireccion.findByIdAndUpdate(
       req.params.id,
-      { nombre, activa },
+      updates,
       { new: true, runValidators: true }
     );
     if (!subdireccion) throw crearError(404, 'SUBDIRECCION_NO_ENCONTRADA', 'Subdireccion no encontrada');

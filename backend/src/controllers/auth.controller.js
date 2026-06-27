@@ -9,7 +9,7 @@ const { ok } = require('../utils/respuesta');
 
 // --- Helpers de tokens ---
 
-function generarAccessToken(usuario) {
+function generarAccessToken(usuario, esAdquisiciones = false) {
   return jwt.sign(
     {
       id: usuario._id,
@@ -17,6 +17,7 @@ function generarAccessToken(usuario) {
       dgId: usuario.direccionGeneral || null,
       subdireccionId: usuario.subdireccion || null,
       seccionId: usuario.seccion || null,
+      esAdquisiciones,
     },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRES_IN }
@@ -108,7 +109,13 @@ async function login(req, res, next) {
     usuario.bloqueadoHasta = null;
     usuario.ultimaActividad = new Date();
 
-    const accessToken = generarAccessToken(usuario);
+    const { Subdireccion } = require('../models/subdireccion.model');
+    const subdireccionDoc = usuario.subdireccion
+      ? await Subdireccion.findById(usuario.subdireccion).lean()
+      : null;
+    const esAdquisiciones = subdireccionDoc?.esAdquisiciones ?? false;
+
+    const accessToken = generarAccessToken(usuario, esAdquisiciones);
     const refreshToken = generarRefreshToken(usuario._id);
 
     // Guardar refresh token (soporte multi-dispositivo)
@@ -134,7 +141,7 @@ async function login(req, res, next) {
         correo: usuario.correo,
         rol: usuario.rol,
         direccionGeneral: usuario.direccionGeneral,
-        subdireccion: usuario.subdireccion || null,
+        subdireccion: subdireccionDoc,
         seccion: usuario.seccion || null,
       },
     }, 'Sesion iniciada correctamente');
@@ -229,7 +236,13 @@ async function refresh(req, res, next) {
       }
     }
 
-    const nuevoAccessToken = generarAccessToken(usuario);
+    const { Subdireccion: SubdireccionModel } = require('../models/subdireccion.model');
+    const subDoc = usuario.subdireccion
+      ? await SubdireccionModel.findById(usuario.subdireccion).lean()
+      : null;
+    const esAdquisicionesRefresh = subDoc?.esAdquisiciones ?? false;
+
+    const nuevoAccessToken = generarAccessToken(usuario, esAdquisicionesRefresh);
 
     return ok(res, { accessToken: nuevoAccessToken }, 'Token renovado correctamente');
   } catch (error) {
@@ -290,4 +303,66 @@ async function cambiarPassword(req, res, next) {
   }
 }
 
-module.exports = { login, logout, refresh, cambiarPassword };
+/**
+ * PUT /api/v1/auth/yo/subdireccion
+ * Solo el administrador puede cambiar su propia subdireccion y seccion para simular vistas de soporte.
+ */
+async function actualizarMiSubdireccion(req, res, next) {
+  try {
+    if (req.usuario.rol !== 'administrador') {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo el administrador puede cambiar su subdireccion');
+    }
+
+    const { subdireccionId, seccionId } = req.body;
+
+    const usuario = await Usuario.findById(req.usuario.id);
+    if (!usuario || !usuario.activo) {
+      throw crearError(404, 'USUARIO_NO_ENCONTRADO', 'Usuario no encontrado');
+    }
+
+    let subdireccionDoc = null;
+    let seccionDoc = null;
+    let esAdquisiciones = false;
+
+    if (subdireccionId) {
+      const { Subdireccion } = require('../models/subdireccion.model');
+      subdireccionDoc = await Subdireccion.findById(subdireccionId).lean();
+      if (!subdireccionDoc) {
+        throw crearError(404, 'SUBDIRECCION_NO_ENCONTRADA', 'Subdireccion no encontrada');
+      }
+      esAdquisiciones = subdireccionDoc.esAdquisiciones ?? false;
+    }
+
+    if (seccionId) {
+      const { Seccion } = require('../models/seccion.model');
+      seccionDoc = await Seccion.findById(seccionId).lean();
+      if (!seccionDoc) {
+        throw crearError(404, 'SECCION_NO_ENCONTRADA', 'Seccion no encontrada');
+      }
+    }
+
+    usuario.subdireccion = subdireccionId || null;
+    usuario.seccion = seccionId || null;
+    await usuario.save();
+
+    const nuevoAccessToken = generarAccessToken(usuario, esAdquisiciones);
+
+    return ok(res, {
+      accessToken: nuevoAccessToken,
+      usuario: {
+        _id: usuario._id,
+        nombre: usuario.nombre,
+        apellidos: usuario.apellidos,
+        correo: usuario.correo,
+        rol: usuario.rol,
+        direccionGeneral: usuario.direccionGeneral,
+        subdireccion: subdireccionDoc,
+        seccion: seccionDoc,
+      },
+    }, 'Perfil actualizado correctamente');
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { login, logout, refresh, cambiarPassword, actualizarMiSubdireccion };

@@ -4,7 +4,7 @@ import { procedimientosService, type CrearProcedimientoPayload } from '../../ser
 import { catalogosService } from '../../services/catalogos.service'
 import { usuariosService } from '../../services/usuarios.service'
 import { mensajeDeError } from '../../services/api'
-import type { DireccionGeneral, BienServicio, UsuarioResumen, TipoProcedimiento, InfoCronograma, Seccion } from '../../types'
+import type { BienServicio, UsuarioResumen, TipoProcedimiento, InfoCronograma, Seccion } from '../../types'
 import { Spinner } from '../../components/ui/Spinner'
 import { ETIQUETA_TIPO_LARGO } from '../../utils/formato'
 import { useAuth } from '../../hooks/useAuth'
@@ -68,7 +68,6 @@ export function NuevoProcedimiento() {
   const puedeCrear = tieneRol('administrador', 'adquisiciones', 'subdirector')
 
   // Datos de catalogos
-  const [dgs, setDGs] = useState<DireccionGeneral[]>([])
   const [secciones, setSecciones] = useState<Seccion[]>([])
   const [bienesServicios, setBienesServicios] = useState<BienServicio[]>([])
   const [asesores, setAsesores] = useState<UsuarioResumen[]>([])
@@ -81,7 +80,6 @@ export function NuevoProcedimiento() {
   const [bienServicio, setBienServicio] = useState('')
   const [descripcionEspecifica, setDescripcionEspecifica] = useState('')
   const [montoEstimado, setMontoEstimado] = useState('')
-  const [direccionGeneral, setDireccionGeneral] = useState('')
   const [seccionId, setSeccionId] = useState('')
   const [asesorTitular, setAsesorTitular] = useState('')
   const [asesorSuplente, setAsesorSuplente] = useState('')
@@ -115,20 +113,14 @@ export function NuevoProcedimiento() {
   useEffect(() => {
     async function cargar() {
       try {
-        const [dgData, secData, bsData, asData] = await Promise.all([
-          catalogosService.listarDGs(),
+        const [secData, bsData, asData] = await Promise.all([
           catalogosService.listarSecciones({ soloActivas: true }),
           catalogosService.listarBienesServicios(),
           usuariosService.listarAsesores(),
         ])
-        setDGs(dgData)
         setSecciones(secData)
         setBienesServicios(bsData)
         setAsesores(asData)
-        if (dgData.length > 0) {
-          setDireccionGeneral(dgData[0]._id)
-          setInfoCronograma((v) => ({ ...v, organismo: dgData[0].siglas || dgData[0].nombre }))
-        }
       } catch {
         setError('No se pudieron cargar los catalogos. Recargue la pagina.')
       } finally {
@@ -137,6 +129,13 @@ export function NuevoProcedimiento() {
     }
     cargar()
   }, [])
+
+  useEffect(() => {
+    const sec = secciones.find((s) => s._id === seccionId)
+    if (sec?.subdireccion) {
+      setInfoCronograma((v) => ({ ...v, organismo: sec.subdireccion.nombre }))
+    }
+  }, [seccionId, secciones])
 
   const asesoresDisponibles = seccionId
     ? asesores.filter((at) => {
@@ -173,7 +172,6 @@ export function NuevoProcedimiento() {
       bienServicio,
       descripcionEspecifica: descripcionEspecifica || undefined,
       montoEstimado: montoEstimado ? Number(montoEstimado) : undefined,
-      direccionGeneral,
       seccion: seccionId,
       asesorTitular,
       asesorSuplente: asesorSuplente || undefined,
@@ -493,7 +491,7 @@ export function NuevoProcedimiento() {
             Datos generales del cronograma
           </h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            <Campo label="Organismo">
+            <Campo label="Subdirección" ayuda="Se auto-completa al seleccionar la sección">
               <input
                 type="text"
                 value={infoCronograma.organismo ?? ''}

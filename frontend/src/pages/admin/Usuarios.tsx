@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { Rol, DireccionGeneral, Subdireccion, Seccion, Paginacion as PaginacionTipo } from '../../types'
+import type { Rol, Subdireccion, Seccion, Paginacion as PaginacionTipo } from '../../types'
 import {
   usuariosService,
   type UsuarioCompleto,
@@ -37,56 +37,22 @@ const ROL_COLOR: Record<Rol, string> = {
   asesor_tecnico: 'bg-teal-100 text-teal-800',
 }
 
-function rolRequiereOrganismo(rol: Rol) {
-  return Boolean(rol && false)
-}
-
-function obtenerIdOrganismo(valor: string | DireccionGeneral | null | undefined) {
+function obtenerIdSub(valor: Subdireccion | string | null | undefined) {
   if (!valor) return ''
   return typeof valor === 'string' ? valor : valor._id
 }
 
-function SelectDG({
-  value,
-  onChange,
-  dgs,
-  requerido,
-  disabled,
-}: {
-  value: string
-  onChange: (v: string) => void
-  dgs: DireccionGeneral[]
-  requerido?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <select
-      required={requerido}
-      disabled={disabled}
-      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900 disabled:bg-gray-50"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="">— Sin organismo —</option>
-      {dgs.map((dg) => (
-        <option key={dg._id} value={dg._id}>
-          {dg.siglas} — {dg.nombre}
-        </option>
-      ))}
-    </select>
-  )
+function obtenerIdSec(valor: Seccion | string | null | undefined) {
+  if (!valor) return ''
+  return typeof valor === 'string' ? valor : valor._id
 }
 
 function ModalCrearUsuario({
-  dgs,
   rolesDisponibles,
-  organismoFijo,
   onGuardado,
   onClose,
 }: {
-  dgs: DireccionGeneral[]
   rolesDisponibles: Rol[]
-  organismoFijo?: string
   onGuardado: () => void
   onClose: () => void
 }) {
@@ -97,26 +63,31 @@ function ModalCrearUsuario({
     correo: '',
     contrasena: '',
     rol: rolInicial,
-    direccionGeneral: organismoFijo ?? '',
   })
+  const [subdirecciones, setSubdirecciones] = useState<Subdireccion[]>([])
+  const [secciones, setSecciones] = useState<Seccion[]>([])
   const [guardando, setGuardando] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const organismoBloqueado = Boolean(organismoFijo)
-  const organismoRequerido = rolRequiereOrganismo(form.rol)
+  useEffect(() => {
+    catalogosService.listarSubdirecciones(true).then(setSubdirecciones).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!form.subdireccion) { setSecciones([]); return }
+    catalogosService.listarSecciones({ soloActivas: true, subdireccionId: form.subdireccion }).then(setSecciones).catch(() => {})
+  }, [form.subdireccion])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setGuardando(true)
     setErrorMsg(null)
     try {
-      const payload: CrearUsuarioPayload = {
+      await usuariosService.crear({
         ...form,
-        direccionGeneral: organismoBloqueado
-          ? organismoFijo
-          : (form.direccionGeneral || undefined),
-      }
-      await usuariosService.crear(payload)
+        subdireccion: form.subdireccion || undefined,
+        seccion: form.seccion || undefined,
+      })
       onGuardado()
     } catch (err) {
       setErrorMsg(mensajeDeError(err))
@@ -138,7 +109,7 @@ function ModalCrearUsuario({
               required
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
               value={form.nombre}
-              onChange={(e) => setForm((valorActual) => ({ ...valorActual, nombre: e.target.value }))}
+              onChange={(e) => setForm((v) => ({ ...v, nombre: e.target.value }))}
             />
           </div>
           <div>
@@ -150,7 +121,7 @@ function ModalCrearUsuario({
               required
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
               value={form.apellidos}
-              onChange={(e) => setForm((valorActual) => ({ ...valorActual, apellidos: e.target.value }))}
+              onChange={(e) => setForm((v) => ({ ...v, apellidos: e.target.value }))}
             />
           </div>
         </div>
@@ -163,7 +134,7 @@ function ModalCrearUsuario({
             required
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
             value={form.correo}
-            onChange={(e) => setForm((valorActual) => ({ ...valorActual, correo: e.target.value }))}
+            onChange={(e) => setForm((v) => ({ ...v, correo: e.target.value }))}
           />
         </div>
         <div>
@@ -176,7 +147,7 @@ function ModalCrearUsuario({
             minLength={8}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
             value={form.contrasena}
-            onChange={(e) => setForm((valorActual) => ({ ...valorActual, contrasena: e.target.value }))}
+            onChange={(e) => setForm((v) => ({ ...v, contrasena: e.target.value }))}
           />
           <p className="text-xs text-gray-400 mt-1">Mínimo 8 caracteres</p>
         </div>
@@ -188,36 +159,41 @@ function ModalCrearUsuario({
             required
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
             value={form.rol}
-            onChange={(e) =>
-              setForm((valorActual) => ({
-                ...valorActual,
-                rol: e.target.value as Rol,
-                direccionGeneral: organismoBloqueado ? organismoFijo ?? '' : valorActual.direccionGeneral,
-              }))
-            }
+            onChange={(e) => setForm((v) => ({ ...v, rol: e.target.value as Rol }))}
           >
             {rolesDisponibles.map((rol) => (
-              <option key={rol} value={rol}>
-                {ETIQUETA_ROL[rol]}
-              </option>
+              <option key={rol} value={rol}>{ETIQUETA_ROL[rol]}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Organismo{organismoRequerido && <span className="text-red-500"> *</span>}
-          </label>
-          <SelectDG
-            value={organismoBloqueado ? (organismoFijo ?? '') : (form.direccionGeneral ?? '')}
-            onChange={(valor) => setForm((valorActual) => ({ ...valorActual, direccionGeneral: valor }))}
-            dgs={dgs}
-            requerido={organismoRequerido}
-            disabled={organismoBloqueado}
-          />
-          {organismoBloqueado && (
-            <p className="text-xs text-gray-400 mt-1">El organismo se toma de su perfil.</p>
-          )}
+          <label className="block text-sm font-medium text-gray-700 mb-1">Subdirección</label>
+          <select
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
+            value={form.subdireccion ?? ''}
+            onChange={(e) => setForm((v) => ({ ...v, subdireccion: e.target.value || undefined, seccion: undefined }))}
+          >
+            <option value="">— Ninguna —</option>
+            {subdirecciones.map((s) => (
+              <option key={s._id} value={s._id}>{s.nombre}</option>
+            ))}
+          </select>
         </div>
+        {form.subdireccion && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sección</label>
+            <select
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
+              value={form.seccion ?? ''}
+              onChange={(e) => setForm((v) => ({ ...v, seccion: e.target.value || undefined }))}
+            >
+              <option value="">— Ninguna —</option>
+              {secciones.map((s) => (
+                <option key={s._id} value={s._id}>{s.nombre}</option>
+              ))}
+            </select>
+          </div>
+        )}
         {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <button
@@ -242,31 +218,37 @@ function ModalCrearUsuario({
 
 function ModalEditarUsuario({
   usuario,
-  dgs,
   rolesDisponibles,
-  organismoFijo,
   onGuardado,
   onClose,
 }: {
   usuario: UsuarioCompleto
-  dgs: DireccionGeneral[]
   rolesDisponibles: Rol[]
-  organismoFijo?: string
   onGuardado: () => void
   onClose: () => void
 }) {
+  const subIdInicial = obtenerIdSub(usuario.subdireccion as Subdireccion | string | null | undefined)
   const [form, setForm] = useState<ActualizarUsuarioPayload>({
     nombre: usuario.nombre,
     apellidos: usuario.apellidos,
     rol: usuario.rol,
-    direccionGeneral: organismoFijo ?? obtenerIdOrganismo(usuario.direccionGeneral),
+    subdireccion: subIdInicial,
+    seccion: obtenerIdSec(usuario.seccion as Seccion | string | null | undefined),
     activo: usuario.activo,
   })
+  const [subdirecciones, setSubdirecciones] = useState<Subdireccion[]>([])
+  const [secciones, setSecciones] = useState<Seccion[]>([])
   const [guardando, setGuardando] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const organismoBloqueado = Boolean(organismoFijo)
-  const organismoRequerido = rolRequiereOrganismo(form.rol ?? usuario.rol)
+  useEffect(() => {
+    catalogosService.listarSubdirecciones(true).then(setSubdirecciones).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!form.subdireccion) { setSecciones([]); return }
+    catalogosService.listarSecciones({ soloActivas: true, subdireccionId: form.subdireccion }).then(setSecciones).catch(() => {})
+  }, [form.subdireccion])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -275,9 +257,8 @@ function ModalEditarUsuario({
     try {
       await usuariosService.actualizar(usuario._id, {
         ...form,
-        direccionGeneral: organismoBloqueado
-          ? organismoFijo
-          : (form.direccionGeneral || undefined),
+        subdireccion: form.subdireccion || undefined,
+        seccion: form.seccion || undefined,
       })
       onGuardado()
     } catch (err) {
@@ -297,7 +278,7 @@ function ModalEditarUsuario({
               type="text"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
               value={form.nombre ?? ''}
-              onChange={(e) => setForm((valorActual) => ({ ...valorActual, nombre: e.target.value }))}
+              onChange={(e) => setForm((v) => ({ ...v, nombre: e.target.value }))}
             />
           </div>
           <div>
@@ -306,7 +287,7 @@ function ModalEditarUsuario({
               type="text"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
               value={form.apellidos ?? ''}
-              onChange={(e) => setForm((valorActual) => ({ ...valorActual, apellidos: e.target.value }))}
+              onChange={(e) => setForm((v) => ({ ...v, apellidos: e.target.value }))}
             />
           </div>
         </div>
@@ -315,41 +296,50 @@ function ModalEditarUsuario({
           <select
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
             value={form.rol}
-            onChange={(e) => setForm((valorActual) => ({ ...valorActual, rol: e.target.value as Rol }))}
+            onChange={(e) => setForm((v) => ({ ...v, rol: e.target.value as Rol }))}
           >
             {rolesDisponibles.map((rol) => (
-              <option key={rol} value={rol}>
-                {ETIQUETA_ROL[rol]}
-              </option>
+              <option key={rol} value={rol}>{ETIQUETA_ROL[rol]}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Organismo{organismoRequerido && <span className="text-red-500"> *</span>}
-          </label>
-          <SelectDG
-            value={organismoBloqueado ? (organismoFijo ?? '') : (form.direccionGeneral ?? '')}
-            onChange={(valor) => setForm((valorActual) => ({ ...valorActual, direccionGeneral: valor }))}
-            dgs={dgs}
-            requerido={organismoRequerido}
-            disabled={organismoBloqueado}
-          />
-          {organismoBloqueado && (
-            <p className="text-xs text-gray-400 mt-1">El organismo se mantiene fijo por su perfil.</p>
-          )}
+          <label className="block text-sm font-medium text-gray-700 mb-1">Subdirección</label>
+          <select
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
+            value={form.subdireccion ?? ''}
+            onChange={(e) => setForm((v) => ({ ...v, subdireccion: e.target.value || undefined, seccion: undefined }))}
+          >
+            <option value="">— Ninguna —</option>
+            {subdirecciones.map((s) => (
+              <option key={s._id} value={s._id}>{s.nombre}</option>
+            ))}
+          </select>
         </div>
+        {form.subdireccion && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sección</label>
+            <select
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
+              value={form.seccion ?? ''}
+              onChange={(e) => setForm((v) => ({ ...v, seccion: e.target.value || undefined }))}
+            >
+              <option value="">— Ninguna —</option>
+              {secciones.map((s) => (
+                <option key={s._id} value={s._id}>{s.nombre}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
             id="activo"
             checked={form.activo ?? true}
-            onChange={(e) => setForm((valorActual) => ({ ...valorActual, activo: e.target.checked }))}
+            onChange={(e) => setForm((v) => ({ ...v, activo: e.target.checked }))}
             className="rounded border-gray-300 text-blue-900 focus:ring-blue-900"
           />
-          <label htmlFor="activo" className="text-sm text-gray-700">
-            Usuario activo
-          </label>
+          <label htmlFor="activo" className="text-sm text-gray-700">Usuario activo</label>
         </div>
         {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
         <div className="flex justify-end gap-2 pt-1">
@@ -513,7 +503,6 @@ function ModalEliminarUsuario({
 export function Usuarios() {
   const { usuario, tieneRol } = useAuth()
   const [usuarios, setUsuarios] = useState<UsuarioCompleto[]>([])
-  const [dgs, setDgs] = useState<DireccionGeneral[]>([])
   const [cargando, setCargando] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [pagina, setPagina] = useState(1)
@@ -570,13 +559,6 @@ export function Usuarios() {
   }, [pagina, filtroRol, filtroActivo, busqueda, esAdquisiciones, esJefe])
 
   useEffect(() => { cargar() }, [cargar])
-
-  useEffect(() => {
-    catalogosService
-      .listarDGs(false)
-      .then(setDgs)
-      .catch(() => {})
-  }, [])
 
   function handleBuscar(e: React.FormEvent) {
     e.preventDefault()
@@ -765,7 +747,6 @@ export function Usuarios() {
 
       {modalCrear && (
         <ModalCrearUsuario
-          dgs={dgs}
           rolesDisponibles={rolesDisponibles}
           onGuardado={() => { setModalCrear(false); cargar() }}
           onClose={() => setModalCrear(false)}
@@ -774,7 +755,6 @@ export function Usuarios() {
       {modalEditar && (
         <ModalEditarUsuario
           usuario={modalEditar}
-          dgs={dgs}
           rolesDisponibles={rolesDisponibles}
           onGuardado={() => { setModalEditar(null); cargar() }}
           onClose={() => setModalEditar(null)}

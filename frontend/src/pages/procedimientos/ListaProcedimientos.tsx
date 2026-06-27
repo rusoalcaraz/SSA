@@ -136,12 +136,6 @@ function obtenerResumen(proc: Procedimiento) {
   }
 }
 
-function colorSemaforo(hito: Hito) {
-  if (['completado', 'recibida', 'recibida_propuesta'].includes(hito.estado)) return 'bg-emerald-500'
-  if (['vencido', 'rechazada', 'fecha_rechazada'].includes(hito.estado)) return 'bg-rose-500'
-  if (['activo', 'fecha_propuesta', 'completado_propuesto'].includes(hito.estado)) return 'bg-amber-500'
-  return 'bg-slate-400'
-}
 
 function RielEtapas({ etapaActual }: { etapaActual: EtapaActual }) {
   const etapaActualIndex = ETAPAS_MACRO.indexOf(etapaActual)
@@ -223,41 +217,6 @@ function PanelLineaTiempo({ proc }: { proc: Procedimiento }) {
           </span>
         </div>
         <RielEtapas etapaActual={proc.etapaActual} />
-      </section>
-
-      <section>
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Linea del tiempo
-          </h3>
-          <span className="text-xs text-slate-400">
-            {resumen.hitos.length} hito{resumen.hitos.length !== 1 ? 's' : ''} registrados
-          </span>
-        </div>
-
-        {resumen.hitos.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
-            Aun no hay hitos cargados para este procedimiento.
-          </div>
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {resumen.hitos.slice(0, 6).map((hito) => (
-              <div key={hito.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <div className="flex items-start gap-3">
-                  <span className={`mt-1 h-3 w-3 rounded-full shrink-0 ${colorSemaforo(hito)}`} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 leading-snug">{hito.nombre}</p>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                      <span>{hito.fuente}</span>
-                      <span className="capitalize">{hito.estado.replace(/_/g, ' ')}</span>
-                      <span>{hito.fecha ? formatearFecha(hito.fecha) : 'Sin fecha'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </section>
     </div>
   )
@@ -469,7 +428,7 @@ export function ListaProcedimientos() {
                   Tipo
                 </th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                  DG
+                  Sección
                 </th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                   Asesor Titular
@@ -529,7 +488,7 @@ export function ListaProcedimientos() {
                       {ETIQUETA_TIPO[proc.tipoProcedimiento]}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      {proc.direccionGeneral?.siglas ?? '—'}
+                      {typeof proc.seccion === 'object' && proc.seccion ? (proc.seccion as { nombre: string }).nombre : '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
                       {proc.asesorTitular

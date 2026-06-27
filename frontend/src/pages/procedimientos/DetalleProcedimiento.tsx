@@ -186,7 +186,8 @@ export function DetalleProcedimiento() {
                 : undefined
             return (
               <>
-                <CampoInfo label="Organismo" valor={info.organismo} />
+                <CampoInfo label="Subdirección" valor={typeof procedimiento.subdireccion === 'object' && procedimiento.subdireccion ? (procedimiento.subdireccion as { nombre: string }).nombre : undefined} />
+                <CampoInfo label="Sección" valor={typeof procedimiento.seccion === 'object' && procedimiento.seccion ? (procedimiento.seccion as { nombre: string }).nombre : undefined} />
                 <CampoInfo label="Fecha" valor={info.fecha ? new Date(info.fecha).toLocaleDateString('es-MX') : undefined} />
                 <CampoInfo label="Asesor tecnico" valor={info.asesorTecnico} />
                 <CampoInfo label="Fuente de financiamiento" valor={info.fuenteFinanciamiento} />
@@ -243,7 +244,7 @@ export function DetalleProcedimiento() {
         <Modal titulo="Datos generales del cronograma" onClose={() => !enviandoInfo && setModalInfo(false)} className="max-w-2xl">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={LABEL}>Organismo</label>
+              <label className={LABEL}>Subdirección</label>
               <input className={INPUT} value={formInfo.organismo ?? ''} onChange={(e) => setInfoField('organismo', e.target.value)} />
             </div>
             <div>

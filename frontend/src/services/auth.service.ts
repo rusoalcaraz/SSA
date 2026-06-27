@@ -35,4 +35,13 @@ async function cambiarPassword(contrasenaActual: string, contrasenaNueva: string
   await api.put('/auth/cambiar-password', { contrasenaActual, contrasenaNueva })
 }
 
-export const authService = { login, logout, refrescarToken, cambiarPassword }
+async function actualizarMiSubdireccion(subdireccionId: string | null, seccionId?: string | null): Promise<LoginResponse> {
+  const { data } = await api.put<{ success: boolean; data: LoginResponse }>(
+    '/auth/yo/subdireccion',
+    { subdireccionId, seccionId: seccionId ?? null }
+  )
+  setAccessToken(data.data.accessToken)
+  return data.data
+}
+
+export const authService = { login, logout, refrescarToken, cambiarPassword, actualizarMiSubdireccion }

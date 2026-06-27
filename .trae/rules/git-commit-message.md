@@ -1,7 +1,7 @@
 ---
 alwaysApply: true
+scene: git_message
 ---
-
 # Reglas de Commits
 
 ## Formato

@@ -19,4 +19,7 @@ router.post('/refresh', limitarAuth, authController.refresh);
 // PUT /api/v1/auth/cambiar-password
 router.put('/cambiar-password', verifyToken, actualizarActividad, authController.cambiarPassword);
 
+// PUT /api/v1/auth/yo/subdireccion — solo administrador puede cambiar su propia subdireccion
+router.put('/yo/subdireccion', verifyToken, actualizarActividad, authController.actualizarMiSubdireccion);
+
 module.exports = router;

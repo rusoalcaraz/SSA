@@ -59,7 +59,7 @@ async function crearSubdireccion(payload: { nombre: string }): Promise<Subdirecc
   return data.data
 }
 
-async function actualizarSubdireccion(id: string, payload: { nombre?: string; activa?: boolean }): Promise<Subdireccion> {
+async function actualizarSubdireccion(id: string, payload: { nombre?: string; activa?: boolean; esAdquisiciones?: boolean }): Promise<Subdireccion> {
   const { data } = await api.put<ApiResponse<Subdireccion>>(`/catalogos/subdirecciones/${id}`, payload)
   return data.data
 }

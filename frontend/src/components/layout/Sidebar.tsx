@@ -3,7 +3,9 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Modal } from '../ui/Modal'
 import { authService } from '../../services/auth.service'
+import { catalogosService } from '../../services/catalogos.service'
 import { mensajeDeError } from '../../services/api'
+import type { Subdireccion, Seccion } from '../../types'
 
 interface NavItem {
   to: string
@@ -134,7 +136,7 @@ function NavItems({ colapsado }: { colapsado: boolean }) {
 }
 
 // -------------------------------------------------------
-// Modal cambiar contrasena propia
+// Modal cambiar contrasena
 // -------------------------------------------------------
 function ModalCambiarPassword({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState({
@@ -252,12 +254,207 @@ function ModalCambiarPassword({ onClose }: { onClose: () => void }) {
 }
 
 // -------------------------------------------------------
+// Modal Mi Perfil
+// -------------------------------------------------------
+const ETIQUETA_ROL: Record<string, string> = {
+  administrador: 'Administrador',
+  adquisiciones: 'Adquisiciones',
+  subdirector: 'Subdirector',
+  jefe_seccion: 'Jefe de Sección',
+  asesor_tecnico: 'Asesor Técnico',
+}
+
+function ModalMiPerfil({
+  onClose,
+  onCambiarPassword,
+}: {
+  onClose: () => void
+  onCambiarPassword: () => void
+}) {
+  const { usuario, tieneRol, actualizarSesion } = useAuth()
+  const esAdmin = tieneRol('administrador')
+
+  const [subdirecciones, setSubdirecciones] = useState<Subdireccion[]>([])
+  const [secciones, setSecciones] = useState<Seccion[]>([])
+  const [subdireccionSeleccionada, setSubdireccionSeleccionada] = useState<string>('')
+  const [seccionSeleccionada, setSeccionSeleccionada] = useState<string>('')
+  const [guardando, setGuardando] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [exito, setExito] = useState(false)
+
+  useEffect(() => {
+    if (!esAdmin) return
+    catalogosService.listarSubdirecciones(true).then(setSubdirecciones).catch(() => {})
+    const sub = usuario?.subdireccion
+    const subId = typeof sub === 'object' && sub !== null ? (sub as Subdireccion)._id : (sub as string) ?? ''
+    setSubdireccionSeleccionada(subId)
+    const sec = usuario?.seccion
+    setSeccionSeleccionada(typeof sec === 'object' && sec !== null ? (sec as Seccion)._id : (sec as string) ?? '')
+  }, [esAdmin, usuario])
+
+  useEffect(() => {
+    if (!esAdmin || !subdireccionSeleccionada) {
+      setSecciones([])
+      return
+    }
+    catalogosService.listarSecciones({ soloActivas: true, subdireccionId: subdireccionSeleccionada }).then(setSecciones).catch(() => {})
+  }, [esAdmin, subdireccionSeleccionada])
+
+  async function handleGuardar() {
+    setGuardando(true)
+    setErrorMsg(null)
+    try {
+      const resultado = await authService.actualizarMiSubdireccion(
+        subdireccionSeleccionada || null,
+        seccionSeleccionada || null,
+      )
+      actualizarSesion(resultado)
+      setExito(true)
+    } catch (err) {
+      setErrorMsg(mensajeDeError(err))
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  const nombreCompleto = `${usuario?.nombre ?? ''} ${usuario?.apellidos ?? ''}`.trim()
+  const iniciales = [usuario?.nombre?.[0], usuario?.apellidos?.[0]].filter(Boolean).join('').toUpperCase()
+
+  const subActual = usuario?.subdireccion
+  const nombreSubActual = typeof subActual === 'object' && subActual !== null
+    ? (subActual as Subdireccion).nombre
+    : null
+
+  const seccion = usuario?.seccion
+  const nombreSeccion = typeof seccion === 'object' && seccion !== null
+    ? (seccion as { nombre: string }).nombre
+    : null
+
+  return (
+    <Modal titulo="Mi perfil" onClose={onClose}>
+      {exito ? (
+        <div className="py-3 text-center space-y-3">
+          <p className="text-sm text-green-700 font-medium">Perfil actualizado correctamente.</p>
+          <p className="text-xs text-gray-500">Tu vista del sistema ha sido actualizada.</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded-md bg-blue-900 text-white hover:bg-blue-800 transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {/* Avatar + nombre */}
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-full bg-blue-900 flex items-center justify-center text-white font-bold text-lg shrink-0">
+              {iniciales || '?'}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900 truncate">{nombreCompleto}</p>
+              <p className="text-sm text-gray-500 truncate">{usuario?.correo}</p>
+            </div>
+          </div>
+
+          {/* Datos del perfil */}
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between gap-2">
+              <span className="text-gray-500 shrink-0">Rol</span>
+              <span className="font-medium text-gray-800 text-right">
+                {ETIQUETA_ROL[usuario?.rol ?? ''] ?? usuario?.rol}
+              </span>
+            </div>
+
+            {/* Subdirección y Sección — editables solo para admin */}
+            {esAdmin ? (
+              <>
+                <div className="space-y-1">
+                  <label className="text-gray-500">Subdirección</label>
+                  <select
+                    value={subdireccionSeleccionada}
+                    onChange={(e) => { setSubdireccionSeleccionada(e.target.value); setSeccionSeleccionada('') }}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
+                  >
+                    <option value="">— Ninguna —</option>
+                    {subdirecciones.map((s) => (
+                      <option key={s._id} value={s._id}>
+                        {s.nombre}{s.esAdquisiciones ? ' ★' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400">
+                    ★ indica la Subdirección de Adquisiciones.
+                  </p>
+                </div>
+                {subdireccionSeleccionada && (
+                  <div className="space-y-1">
+                    <label className="text-gray-500">Sección</label>
+                    <select
+                      value={seccionSeleccionada}
+                      onChange={(e) => setSeccionSeleccionada(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
+                    >
+                      <option value="">— Ninguna —</option>
+                      {secciones.map((s) => (
+                        <option key={s._id} value={s._id}>{s.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between gap-2">
+                  <span className="text-gray-500 shrink-0">Subdirección</span>
+                  <span className="font-medium text-gray-800 text-right">{nombreSubActual ?? '—'}</span>
+                </div>
+                {nombreSeccion && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-gray-500 shrink-0">Sección</span>
+                    <span className="font-medium text-gray-800 text-right">{nombreSeccion}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+
+          {/* Acciones */}
+          <div className="pt-1 flex flex-col gap-2">
+            {esAdmin && (
+              <button
+                type="button"
+                onClick={handleGuardar}
+                disabled={guardando}
+                className="w-full py-2 text-sm rounded-md bg-blue-900 text-white hover:bg-blue-800 disabled:opacity-50 transition-colors"
+              >
+                {guardando ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { onClose(); onCambiarPassword() }}
+              className="w-full py-2 text-sm text-blue-700 hover:text-blue-900 transition-colors text-left"
+            >
+              Cambiar contraseña
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// -------------------------------------------------------
 // Sidebar principal
 // -------------------------------------------------------
 export function Sidebar() {
   const { usuario, logout } = useAuth()
   const navigate = useNavigate()
   const [modalPassword, setModalPassword] = useState(false)
+  const [modalPerfil, setModalPerfil] = useState(false)
   const [colapsado, setColapsado] = useState<boolean>(() => {
     try {
       const s = localStorage.getItem('ssa_sidebar_colapsado')
@@ -278,6 +475,8 @@ export function Sidebar() {
     navigate('/login', { replace: true })
   }
 
+  const iniciales = [usuario?.nombre?.[0], usuario?.apellidos?.[0]].filter(Boolean).join('').toUpperCase()
+
   return (
     <aside className={`${colapsado ? 'w-16' : 'w-60'} bg-blue-950 flex flex-col min-h-screen shrink-0 transition-all duration-200`}>
       <div className="px-3 py-3 border-b border-blue-800 flex items-center justify-between">
@@ -296,24 +495,32 @@ export function Sidebar() {
 
       <NavItems colapsado={colapsado} />
 
+      {/* Sección inferior — perfil clickable */}
       <div className="px-3 py-3 border-t border-blue-800">
         {!colapsado ? (
           <>
-            <p className="text-blue-200 text-xs font-medium truncate">
-              {usuario?.nombre} {usuario?.apellidos}
-            </p>
-            <p className="text-blue-400 text-xs truncate">{usuario?.correo}</p>
-            <p className="text-blue-400 text-xs mt-0.5 capitalize">{usuario?.rol?.replace(/_/g, ' ')}</p>
-            <div className="mt-3 flex flex-col gap-1">
-              <button
-                onClick={() => setModalPassword(true)}
-                className="text-left text-xs text-blue-300 hover:text-white transition-colors"
-              >
-                Cambiar contrasena
-              </button>
+            <button
+              type="button"
+              onClick={() => setModalPerfil(true)}
+              className="w-full text-left flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-blue-900 transition-colors group"
+            >
+              <div className="h-7 w-7 rounded-full bg-blue-700 group-hover:bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 transition-colors">
+                {iniciales || '?'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-blue-100 text-xs font-medium truncate">
+                  {usuario?.nombre} {usuario?.apellidos}
+                </p>
+                <p className="text-blue-400 text-xs truncate capitalize">{usuario?.rol?.replace(/_/g, ' ')}</p>
+              </div>
+              <svg className="h-3.5 w-3.5 text-blue-400 group-hover:text-blue-200 shrink-0 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+            <div className="mt-2">
               <button
                 onClick={handleLogout}
-                className="text-left text-xs text-blue-300 hover:text-white transition-colors"
+                className="text-left text-xs text-blue-400 hover:text-white transition-colors"
               >
                 Cerrar sesion
               </button>
@@ -322,11 +529,11 @@ export function Sidebar() {
         ) : (
           <div className="flex flex-col items-center gap-2">
             <button
-              onClick={() => setModalPassword(true)}
-              className="text-blue-300 hover:text-white transition-colors"
-              title="Cambiar contrasena"
+              onClick={() => setModalPerfil(true)}
+              className="h-7 w-7 rounded-full bg-blue-700 hover:bg-blue-600 flex items-center justify-center text-white text-xs font-bold transition-colors"
+              title="Mi perfil"
             >
-              <Icono nombre="usuarios" className="h-5 w-5" />
+              {iniciales || '?'}
             </button>
             <button
               onClick={handleLogout}
@@ -343,6 +550,12 @@ export function Sidebar() {
         )}
       </div>
 
+      {modalPerfil && (
+        <ModalMiPerfil
+          onClose={() => setModalPerfil(false)}
+          onCambiarPassword={() => setModalPassword(true)}
+        />
+      )}
       {modalPassword && (
         <ModalCambiarPassword onClose={() => setModalPassword(false)} />
       )}

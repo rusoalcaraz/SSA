@@ -1,5 +1,5 @@
 import { createContext, useState, useCallback, useEffect, type ReactNode } from 'react'
-import type { Rol, UsuarioResumen } from '../types'
+import type { Rol, UsuarioResumen, Subdireccion } from '../types'
 import { authService } from '../services/auth.service'
 import { setAccessToken as setApiToken, clearAccessToken } from '../services/api'
 
@@ -8,10 +8,16 @@ interface AuthState {
   accessToken: string | null
 }
 
+export interface SesionData {
+  accessToken: string
+  usuario: UsuarioResumen
+}
+
 interface AuthContextValue extends AuthState {
   login: (correo: string, contrasena: string) => Promise<void>
   logout: () => Promise<void>
   setAccessToken: (token: string) => void
+  actualizarSesion: (data: SesionData) => void
   estaAutenticado: boolean
   tieneRol: (...roles: Rol[]) => boolean
 }
@@ -26,7 +32,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const guardado = sessionStorage.getItem(STORAGE_KEY)
       if (guardado) {
         const parsed: AuthState = JSON.parse(guardado)
-        // Sincronizar el token en memoria del cliente axios al restaurar sesion
         if (parsed.accessToken) setApiToken(parsed.accessToken)
         return parsed
       }
@@ -36,7 +41,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { usuario: null, accessToken: null }
   })
 
-  // Persistir en sessionStorage cada vez que cambia el estado
   useEffect(() => {
     if (state.usuario && state.accessToken) {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state))
@@ -65,10 +69,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, accessToken: token }))
   }, [])
 
+  const actualizarSesion = useCallback(({ accessToken, usuario }: SesionData) => {
+    setApiToken(accessToken)
+    setState({ accessToken, usuario })
+  }, [])
+
   const tieneRol = useCallback(
     (...roles: Rol[]) => {
       if (!state.usuario) return false
-      return roles.includes(state.usuario.rol)
+      if (roles.includes(state.usuario.rol)) return true
+      // Permiso derivado de pertenecer a la Subdireccion de Adquisiciones
+      if (roles.includes('adquisiciones')) {
+        const sub = state.usuario.subdireccion
+        if (typeof sub === 'object' && sub !== null && (sub as Subdireccion).esAdquisiciones === true) {
+          return true
+        }
+      }
+      return false
     },
     [state.usuario]
   )
@@ -80,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         setAccessToken,
+        actualizarSesion,
         estaAutenticado: !!state.accessToken,
         tieneRol,
       }}

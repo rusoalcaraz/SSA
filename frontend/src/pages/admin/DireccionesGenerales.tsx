@@ -36,6 +36,7 @@ function ModalSubdireccion({
   onClose: () => void
 }) {
   const [nombre, setNombre] = useState(sub?.nombre ?? '')
+  const [esAdquisiciones, setEsAdquisiciones] = useState(sub?.esAdquisiciones ?? false)
   const [guardando, setGuardando] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -45,7 +46,7 @@ function ModalSubdireccion({
     setErrorMsg(null)
     try {
       if (sub) {
-        await catalogosService.actualizarSubdireccion(sub._id, { nombre })
+        await catalogosService.actualizarSubdireccion(sub._id, { nombre, esAdquisiciones })
       } else {
         await catalogosService.crearSubdireccion({ nombre })
       }
@@ -73,6 +74,25 @@ function ModalSubdireccion({
             onChange={(e) => setNombre(e.target.value)}
           />
         </div>
+        {sub && (
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="esAdquisiciones"
+              checked={esAdquisiciones}
+              onChange={(e) => setEsAdquisiciones(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-900 focus:ring-blue-900"
+            />
+            <div>
+              <label htmlFor="esAdquisiciones" className="text-sm font-medium text-gray-700 cursor-pointer">
+                Subdirección de Adquisiciones
+              </label>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Los usuarios de esta subdirección tendrán permisos de adquisiciones (validar etapas, entregas, etc.). Solo puede haber una.
+              </p>
+            </div>
+          </div>
+        )}
         {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <button

@@ -41,6 +41,7 @@ export interface Subdireccion {
   _id: string
   nombre: string
   activa: boolean
+  esAdquisiciones?: boolean
 }
 
 export interface Seccion {

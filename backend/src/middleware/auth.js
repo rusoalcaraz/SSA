@@ -78,7 +78,12 @@ function checkRole(rolesPermitidos) {
       });
     }
 
-    if (!rolesPermitidos.includes(req.usuario.rol)) {
+    const tieneRolDirecto = rolesPermitidos.includes(req.usuario.rol);
+    // Permiso derivado de pertenecer a la Subdireccion de Adquisiciones
+    const tienePermisoAdquisiciones =
+      rolesPermitidos.includes('adquisiciones') && req.usuario.esAdquisiciones === true;
+
+    if (!tieneRolDirecto && !tienePermisoAdquisiciones) {
       return res.status(403).json({
         success: false,
         error: {

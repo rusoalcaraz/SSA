@@ -14,6 +14,10 @@ const subdireccionSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    esAdquisiciones: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
