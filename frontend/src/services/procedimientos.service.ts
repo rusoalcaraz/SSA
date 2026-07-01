@@ -60,9 +60,8 @@ export interface CrearProcedimientoPayload {
   descripcionEspecifica?: string
   montoEstimado?: number
   moneda?: string
-  direccionGeneral: string
   seccion: string
-  asesorTitular: string
+  asesorTitular?: string
   asesorSuplente?: string
   tipoProcedimiento: TipoProcedimiento
   supuestoExcepcion?: string

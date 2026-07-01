@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { dashboardService, type ResumenDashboard, type TipoKPI, type ProcedimientoKPI } from '../services/dashboard.service'
+import { dashboardService, type ResumenDashboard, type TipoKPI, type ProcedimientoKPI, type ItemAgrupado } from '../services/dashboard.service'
 import { mensajeDeError } from '../services/api'
 import { Spinner } from '../components/ui/Spinner'
 import { Modal } from '../components/ui/Modal'
@@ -327,23 +327,33 @@ export function Dashboard() {
     : []
   const maxTipo = datosTipo.reduce((m, [, c]) => Math.max(m, c), 0)
 
-  // Datos DGs
-  const datosDG = resumen
-    ? [...resumen.porDireccionGeneral]
-        .filter((d) => d.total > 0)
-        .sort((a, b) => b.total - a.total)
+  // Datos agrupados según rol
+  const datosAgrupados: ItemAgrupado[] = resumen
+    ? (esGlobal
+        ? resumen.porSubdireccion
+        : esSubdirector
+          ? resumen.porSeccion
+          : esJefe
+            ? resumen.porAsesor
+            : []
+      ).filter((d) => d.total > 0).sort((a, b) => b.total - a.total)
     : []
-  const maxDG = datosDG.reduce((m, d) => Math.max(m, d.total), 0)
+  const maxAgrupado = datosAgrupados.reduce((m, d) => Math.max(m, d.total), 0)
+
+  const tituloAgrupacion = esGlobal
+    ? 'Subdirección'
+    : esSubdirector
+      ? 'Sección'
+      : 'Asesor Técnico'
+
+  const mostrarAgrupacion = esGlobal || esSubdirector || esJefe
 
   // Eliminado banner de alertas; KPI cubre esta indicacion
 
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
-      <div
-        className="rounded-2xl px-6 py-5 flex items-center justify-between shadow-md"
-        style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1d4ed8 100%)' }}
-      >
+      <div className="flex items-center justify-between rounded-2xl bg-linear-to-r from-slate-900 via-blue-950 to-blue-800 px-6 py-5 shadow-md">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-tight">
             {esSubdirector ? 'Dashboard de Subdirección' : esJefe ? 'Dashboard de Sección' : 'Resumen Ejecutivo'}
@@ -542,51 +552,49 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* ── Gráfica DGs ── */}
-          {esGlobal && datosDG.length > 0 && (
+          {/* ── Gráfica por agrupación ── */}
+          {mostrarAgrupacion && datosAgrupados.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-5">
-                Procedimientos por Dirección General
+                Procedimientos por {tituloAgrupacion}
               </h2>
-              {/* Barras SVG para DGs */}
-              <GraficaBarrasDG dgs={datosDG} maxValue={maxDG} />
+              <GraficaBarras items={datosAgrupados} maxValue={maxAgrupado} />
             </div>
           )}
 
-          {/* ── Tabla detalle DGs ── */}
-          {esGlobal && datosDG.length > 0 && (
+          {/* ── Tabla detalle por agrupación ── */}
+          {mostrarAgrupacion && datosAgrupados.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5">
               <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4">
-                Detalle por Dirección General
+                Detalle por {tituloAgrupacion}
               </h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      <th className="text-left py-2 pr-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Dirección</th>
+                      <th className="text-left py-2 pr-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">{tituloAgrupacion}</th>
                       <th className="text-right py-2 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</th>
                       <th className="text-right py-2 pl-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Urgentes</th>
                       <th className="py-2 pl-6 text-xs font-semibold text-gray-400 uppercase tracking-wide">Participación</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {datosDG.map((dg) => {
+                    {datosAgrupados.map((item) => {
                       const pct =
                         resumen.totalProcedimientos > 0
-                          ? Math.round((dg.total / resumen.totalProcedimientos) * 100)
+                          ? Math.round((item.total / resumen.totalProcedimientos) * 100)
                           : 0
                       return (
-                        <tr key={dg._id} className="hover:bg-gray-50/60 transition-colors">
+                        <tr key={item._id} className="hover:bg-gray-50/60 transition-colors">
                           <td className="py-2.5 pr-4">
-                            <span className="font-semibold text-gray-800">{dg.siglas}</span>
-                            <span className="ml-2 text-xs text-gray-400 hidden sm:inline truncate">{dg.nombre}</span>
+                            <span className="font-semibold text-gray-800">{item.nombre ?? '—'}</span>
                           </td>
-                          <td className="text-right py-2.5 px-4 font-bold text-gray-800">{dg.total}</td>
+                          <td className="text-right py-2.5 px-4 font-bold text-gray-800">{item.total}</td>
                           <td className="text-right py-2.5 pl-4">
-                            {dg.urgentes > 0 ? (
+                            {item.urgentes > 0 ? (
                               <span className="inline-flex items-center gap-1 text-red-600 font-semibold">
                                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500" />
-                                {dg.urgentes}
+                                {item.urgentes}
                               </span>
                             ) : (
                               <span className="text-gray-300">—</span>
@@ -617,20 +625,12 @@ export function Dashboard() {
   )
 }
 
-// ── Gráfica de barras SVG para DGs ──────────────────────────────────────────
+// ── Gráfica de barras SVG genérica ──────────────────────────────────────────
 
-interface DGBar {
-  _id: string
-  nombre: string
-  siglas: string
-  total: number
-  urgentes: number
-}
-
-function GraficaBarrasDG({ dgs, maxValue }: { dgs: DGBar[]; maxValue: number }) {
-  const [tooltip, setTooltip] = useState<{ dg: DGBar; x: number; y: number } | null>(null)
+function GraficaBarras({ items, maxValue }: { items: ItemAgrupado[]; maxValue: number }) {
+  const [tooltip, setTooltip] = useState<{ item: ItemAgrupado; x: number; y: number } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
-  const displayed = dgs.slice(0, 12)
+  const displayed = items.slice(0, 12)
   const W = 800
   const H = 200
   const padL = 48
@@ -639,7 +639,7 @@ function GraficaBarrasDG({ dgs, maxValue }: { dgs: DGBar[]; maxValue: number }) 
   const padB = 40
   const chartW = W - padL - padR
   const chartH = H - padT - padB
-  const barW = Math.floor(chartW / displayed.length) - 6
+  const barW = Math.floor(chartW / Math.max(displayed.length, 1)) - 6
   const yTicks = 4
 
   function barX(i: number) {
@@ -649,17 +649,24 @@ function GraficaBarrasDG({ dgs, maxValue }: { dgs: DGBar[]; maxValue: number }) 
     return padT + chartH - (maxValue > 0 ? (v / maxValue) * chartH : 0)
   }
 
-  const handleMove = useCallback((e: React.MouseEvent<SVGRectElement>, dg: DGBar) => {
+  const handleMove = useCallback((e: React.MouseEvent<SVGRectElement>, item: ItemAgrupado) => {
     if (!svgRef.current) return
     const rect = svgRef.current.getBoundingClientRect()
     const scaleX = W / rect.width
     const scaleY = H / rect.height
     setTooltip({
-      dg,
+      item,
       x: (e.clientX - rect.left) / scaleX,
       y: (e.clientY - rect.top) / scaleY,
     })
   }, [])
+
+  const labelCorto = (item: ItemAgrupado) => {
+    const palabras = (item.nombre ?? '').split(' ')
+    return palabras.length > 1
+      ? palabras.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('')
+      : (item.nombre ?? '').substring(0, 6)
+  }
 
   return (
     <div className="relative overflow-x-auto">
@@ -684,35 +691,35 @@ function GraficaBarrasDG({ dgs, maxValue }: { dgs: DGBar[]; maxValue: number }) 
           )
         })}
         {/* Barras total */}
-        {displayed.map((dg, i) => {
+        {displayed.map((item, i) => {
           const x = barX(i)
-          const yT = valToY(dg.total)
+          const yT = valToY(item.total)
           const h = padT + chartH - yT
           return (
             <rect
-              key={`total-${dg._id}`}
+              key={`total-${item._id}`}
               x={x}
               y={yT}
               width={barW}
               height={h}
               rx={4}
               fill="#3B82F6"
-              opacity={tooltip && tooltip.dg._id !== dg._id ? 0.5 : 1}
+              opacity={tooltip && tooltip.item._id !== item._id ? 0.5 : 1}
               style={{ cursor: 'pointer', transition: 'opacity 0.15s' }}
-              onMouseMove={(e) => handleMove(e, dg)}
+              onMouseMove={(e) => handleMove(e, item)}
               onMouseLeave={() => setTooltip(null)}
             />
           )
         })}
         {/* Barras urgentes (encima) */}
-        {displayed.map((dg, i) => {
-          if (dg.urgentes === 0) return null
+        {displayed.map((item, i) => {
+          if (item.urgentes === 0) return null
           const x = barX(i)
-          const yU = valToY(dg.urgentes)
+          const yU = valToY(item.urgentes)
           const h = padT + chartH - yU
           return (
             <rect
-              key={`urg-${dg._id}`}
+              key={`urg-${item._id}`}
               x={x + barW * 0.25}
               y={yU}
               width={barW * 0.5}
@@ -724,15 +731,15 @@ function GraficaBarrasDG({ dgs, maxValue }: { dgs: DGBar[]; maxValue: number }) 
           )
         })}
         {/* Etiquetas eje X */}
-        {displayed.map((dg, i) => (
+        {displayed.map((item, i) => (
           <text
-            key={`label-${dg._id}`}
+            key={`label-${item._id}`}
             x={barX(i) + barW / 2}
             y={padT + chartH + 18}
             textAnchor="middle"
             style={{ fontSize: 11, fill: '#6B7280' }}
           >
-            {dg.siglas || dg.nombre.substring(0, 6)}
+            {labelCorto(item)}
           </text>
         ))}
         {/* Tooltip SVG */}
@@ -754,21 +761,21 @@ function GraficaBarrasDG({ dgs, maxValue }: { dgs: DGBar[]; maxValue: number }) 
               y={Math.max(tooltip.y - 30, 18)}
               style={{ fontSize: 11, fontWeight: 700, fill: '#1F2937' }}
             >
-              {tooltip.dg.siglas}
+              {(tooltip.item.nombre ?? '').substring(0, 20)}
             </text>
             <text
               x={Math.min(tooltip.x + 16, W - 152)}
               y={Math.max(tooltip.y - 14, 34)}
               style={{ fontSize: 10, fill: '#6B7280' }}
             >
-              Total: {tooltip.dg.total}
+              Total: {tooltip.item.total}
             </text>
             <text
               x={Math.min(tooltip.x + 16, W - 152)}
               y={Math.max(tooltip.y + 2, 50)}
               style={{ fontSize: 10, fill: '#EF4444' }}
             >
-              Urgentes: {tooltip.dg.urgentes}
+              Urgentes: {tooltip.item.urgentes}
             </text>
           </g>
         )}

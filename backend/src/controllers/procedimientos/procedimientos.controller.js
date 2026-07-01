@@ -14,6 +14,7 @@ const {
 const { notificarProcedimientoUrgente } = require('../../services/notificaciones.service');
 const { Usuario } = require('../../models/usuario.model');
 const { Seccion } = require('../../models/seccion.model');
+const { DireccionGeneral } = require('../../models/direccionGeneral.model');
 
 const POPULATE_BASICO = [
   { path: 'bienServicio', select: 'clave descripcion tipo' },
@@ -249,8 +250,12 @@ async function crear(req, res, next) {
       throw crearError(403, 'ACCESO_DENEGADO', 'Solo puede crear procedimientos dentro de su subdireccion');
     }
 
-    const organismoObjetivo = direccionGeneral;
-    if (!organismoObjetivo) throw crearError(400, 'DG_REQUERIDA', 'La Direccion General del procedimiento es obligatoria');
+    let organismoObjetivo = direccionGeneral;
+    if (!organismoObjetivo) {
+      const dgDefault = await DireccionGeneral.findOne({ activa: true }).select('_id').lean();
+      if (!dgDefault) throw crearError(500, 'DG_NO_ENCONTRADA', 'No existe ninguna Direccion General activa en el sistema');
+      organismoObjetivo = dgDefault._id;
+    }
 
     await validarAsesoresDeLaSeccion(seccionDb._id, asesorTitular, asesorSuplente);
 

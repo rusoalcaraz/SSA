@@ -4,7 +4,7 @@ import { procedimientosService, type CrearProcedimientoPayload } from '../../ser
 import { catalogosService } from '../../services/catalogos.service'
 import { usuariosService } from '../../services/usuarios.service'
 import { mensajeDeError } from '../../services/api'
-import type { BienServicio, UsuarioResumen, TipoProcedimiento, InfoCronograma, Seccion } from '../../types'
+import type { BienServicio, UsuarioResumen, TipoProcedimiento, Seccion } from '../../types'
 import { Spinner } from '../../components/ui/Spinner'
 import { ETIQUETA_TIPO_LARGO } from '../../utils/formato'
 import { useAuth } from '../../hooks/useAuth'
@@ -22,7 +22,6 @@ const TIPOS_CON_EXCEPCION: TipoProcedimiento[] = [
   'adjudicacion_directa',
 ]
 
-// Supuestos del Art. 54 LAASSP (simplificado)
 const SUPUESTOS_EXCEPCION = [
   { value: 'fraccion_I', label: 'Art. 54 Frac. I' },
   { value: 'fraccion_II', label: 'Art. 54 Frac. II' },
@@ -33,7 +32,7 @@ const SUPUESTOS_EXCEPCION = [
   { value: 'fraccion_VII', label: 'Art. 54 Frac. VII' },
   { value: 'fraccion_VIII', label: 'Art. 54 Frac. VIII' },
   { value: 'fraccion_IX', label: 'Art. 54 Frac. IX' },
-  { value: 'fraccion_X', label: 'Art. 54 Frac. X (Consultoria)' },
+  { value: 'fraccion_X', label: 'Art. 54 Frac. X (Consultoría)' },
 ]
 
 function Campo({
@@ -67,13 +66,11 @@ export function NuevoProcedimiento() {
   const { tieneRol } = useAuth()
   const puedeCrear = tieneRol('administrador', 'adquisiciones', 'subdirector')
 
-  // Datos de catalogos
   const [secciones, setSecciones] = useState<Seccion[]>([])
   const [bienesServicios, setBienesServicios] = useState<BienServicio[]>([])
   const [asesores, setAsesores] = useState<UsuarioResumen[]>([])
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true)
 
-  // Campos del formulario
   const [titulo, setTitulo] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [anioFiscal, setAnioFiscal] = useState(new Date().getFullYear())
@@ -89,23 +86,6 @@ export function NuevoProcedimiento() {
   const [justificacionTipo, setJustificacionTipo] = useState('')
   const [urgente, setUrgente] = useState(false)
   const [justificacionUrgencia, setJustificacionUrgencia] = useState('')
-  // Datos generales del cronograma
-  const [infoCronograma, setInfoCronograma] = useState<InfoCronograma>({
-    organismo: '',
-    fecha: '',
-    asesorTecnico: '',
-    fuenteFinanciamiento: '',
-    telefonoCelular: '',
-    extensionSatelital: '',
-    nombreProcedimientoContratacion: '',
-    numeroPartidas: undefined,
-    numeroArticulos: undefined,
-    capituloGasto: '',
-    requiereAnualidad: null,
-    numeroOficioPlurianualidad: '',
-    claveCartera: '',
-    numeroClaveCartera: '',
-  })
 
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -122,20 +102,13 @@ export function NuevoProcedimiento() {
         setBienesServicios(bsData)
         setAsesores(asData)
       } catch {
-        setError('No se pudieron cargar los catalogos. Recargue la pagina.')
+        setError('No se pudieron cargar los catálogos. Recargue la página.')
       } finally {
         setCargandoCatalogos(false)
       }
     }
     cargar()
   }, [])
-
-  useEffect(() => {
-    const sec = secciones.find((s) => s._id === seccionId)
-    if (sec?.subdireccion) {
-      setInfoCronograma((v) => ({ ...v, organismo: sec.subdireccion.nombre }))
-    }
-  }, [seccionId, secciones])
 
   const asesoresDisponibles = seccionId
     ? asesores.filter((at) => {
@@ -173,7 +146,7 @@ export function NuevoProcedimiento() {
       descripcionEspecifica: descripcionEspecifica || undefined,
       montoEstimado: montoEstimado ? Number(montoEstimado) : undefined,
       seccion: seccionId,
-      asesorTitular,
+      asesorTitular: asesorTitular || undefined,
       asesorSuplente: asesorSuplente || undefined,
       tipoProcedimiento: tipoProcedimiento as TipoProcedimiento,
       supuestoExcepcion: supuestoExcepcion || undefined,
@@ -181,22 +154,6 @@ export function NuevoProcedimiento() {
       justificacionTipo: justificacionTipo || undefined,
       urgente,
       justificacionUrgencia: urgente ? justificacionUrgencia : undefined,
-      infoCronograma: {
-        organismo: infoCronograma.organismo || undefined,
-        fecha: infoCronograma.fecha || undefined,
-        asesorTecnico: infoCronograma.asesorTecnico || undefined,
-        fuenteFinanciamiento: infoCronograma.fuenteFinanciamiento || undefined,
-        telefonoCelular: infoCronograma.telefonoCelular || undefined,
-        extensionSatelital: infoCronograma.extensionSatelital || undefined,
-        nombreProcedimientoContratacion: infoCronograma.nombreProcedimientoContratacion || undefined,
-        numeroPartidas: infoCronograma.numeroPartidas,
-        numeroArticulos: infoCronograma.numeroArticulos,
-        capituloGasto: infoCronograma.capituloGasto || undefined,
-        requiereAnualidad: infoCronograma.requiereAnualidad,
-        numeroOficioPlurianualidad: infoCronograma.numeroOficioPlurianualidad || undefined,
-        claveCartera: infoCronograma.claveCartera || undefined,
-        numeroClaveCartera: infoCronograma.numeroClaveCartera || undefined,
-      },
     }
 
     try {
@@ -222,7 +179,7 @@ export function NuevoProcedimiento() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Nuevo Procedimiento</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Complete los datos del procedimiento de adquisicion.
+          Complete los datos del procedimiento de adquisición.
         </p>
       </div>
 
@@ -234,13 +191,13 @@ export function NuevoProcedimiento() {
 
       <form onSubmit={handleSubmit} noValidate className="space-y-8">
 
-        {/* Seccion: Identificacion */}
+        {/* Identificación */}
         <section className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
           <h2 className="text-base font-semibold text-gray-800 pb-1 border-b border-gray-100">
-            Identificacion
+            Identificación
           </h2>
 
-          <Campo label="Titulo del procedimiento" requerido>
+          <Campo label="Título del procedimiento" requerido>
             <input
               type="text"
               required
@@ -253,7 +210,7 @@ export function NuevoProcedimiento() {
           </Campo>
 
           <div className="grid grid-cols-2 gap-4">
-            <Campo label="Anio fiscal" requerido>
+            <Campo label="Año fiscal" requerido>
               <input
                 type="number"
                 required
@@ -293,7 +250,7 @@ export function NuevoProcedimiento() {
             </Campo>
           </div>
 
-          <Campo label="Descripcion" ayuda="Opcional. Contexto adicional sobre el procedimiento.">
+          <Campo label="Descripción" ayuda="Opcional. Contexto adicional sobre el procedimiento.">
             <textarea
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
@@ -304,13 +261,13 @@ export function NuevoProcedimiento() {
           </Campo>
         </section>
 
-        {/* Seccion: Bien o servicio */}
+        {/* Bien o servicio */}
         <section className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
           <h2 className="text-base font-semibold text-gray-800 pb-1 border-b border-gray-100">
             Bien o Servicio
           </h2>
 
-          <Campo label="Catalogo de bienes y servicios" requerido>
+          <Campo label="Catálogo de bienes y servicios" requerido>
             <select
               required
               value={bienServicio}
@@ -327,7 +284,7 @@ export function NuevoProcedimiento() {
             </select>
           </Campo>
 
-          <Campo label="Descripcion especifica" ayuda="Detalle particular de esta adquisicion.">
+          <Campo label="Descripción específica" ayuda="Detalle particular de esta adquisición.">
             <textarea
               value={descripcionEspecifica}
               onChange={(e) => setDescripcionEspecifica(e.target.value)}
@@ -353,53 +310,10 @@ export function NuevoProcedimiento() {
           </div>
         </section>
 
-        {/* Seccion: Asesores tecnicos */}
+        {/* Tipo de procedimiento */}
         <section className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
           <h2 className="text-base font-semibold text-gray-800 pb-1 border-b border-gray-100">
-            Asesores Tecnicos
-          </h2>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Campo label="AT Titular" requerido>
-              <select
-                required
-                value={asesorTitular}
-                onChange={(e) => setAsesorTitular(e.target.value)}
-                className={SELECT}
-                disabled={enviando}
-              >
-                <option value="">Seleccionar asesor</option>
-                {asesoresDisponibles.map((at) => (
-                  <option key={at._id} value={at._id}>
-                    {at.nombre} {at.apellidos}
-                  </option>
-                ))}
-              </select>
-            </Campo>
-            <Campo label="AT Suplente" ayuda="Opcional.">
-              <select
-                value={asesorSuplente}
-                onChange={(e) => setAsesorSuplente(e.target.value)}
-                className={SELECT}
-                disabled={enviando}
-              >
-                <option value="">Sin suplente</option>
-                {asesoresDisponibles
-                  .filter((at) => at._id !== asesorTitular)
-                  .map((at) => (
-                    <option key={at._id} value={at._id}>
-                      {at.nombre} {at.apellidos}
-                    </option>
-                  ))}
-              </select>
-            </Campo>
-          </div>
-        </section>
-
-        {/* Seccion: Tipo y justificacion */}
-        <section className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
-          <h2 className="text-base font-semibold text-gray-800 pb-1 border-b border-gray-100">
-            Tipo de Procedimiento y Justificacion Legal
+            Tipo de Procedimiento y Justificación Legal
           </h2>
 
           <Campo label="Tipo de procedimiento" requerido>
@@ -425,9 +339,9 @@ export function NuevoProcedimiento() {
 
           {requiereExcepcion && (
             <Campo
-              label="Supuesto de excepcion (Art. 54 LAASSP)"
+              label="Supuesto de excepción (Art. 54 LAASSP)"
               requerido
-              ayuda="Seleccione la fraccion aplicable a este procedimiento."
+              ayuda="Seleccione la fracción aplicable a este procedimiento."
             >
               <select
                 required
@@ -451,7 +365,7 @@ export function NuevoProcedimiento() {
 
           {requiereConsultoria && (
             <Campo
-              label="Tipo de consultoria"
+              label="Tipo de consultoría"
               requerido
               ayuda="Art. 109 Frac. IX del Reglamento de la LAASSP."
             >
@@ -471,8 +385,8 @@ export function NuevoProcedimiento() {
           )}
 
           <Campo
-            label="Justificacion (fundamento legal)"
-            ayuda="Referencia al articulo aplicable de la LAASSP y su Reglamento (Art. 108 Reglamento)."
+            label="Justificación (fundamento legal)"
+            ayuda="Referencia al artículo aplicable de la LAASSP y su Reglamento (Art. 108 Reglamento)."
           >
             <textarea
               value={justificacionTipo}
@@ -480,177 +394,56 @@ export function NuevoProcedimiento() {
               rows={3}
               className={INPUT}
               disabled={enviando}
-              placeholder="Con fundamento en el articulo..."
+              placeholder="Con fundamento en el artículo..."
             />
           </Campo>
         </section>
 
-        {/* Seccion: Datos generales del cronograma */}
+        {/* Asesores técnicos */}
         <section className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
-          <h2 className="text-base font-semibold text-gray-800 pb-1 border-b border-gray-100">
-            Datos generales del cronograma
-          </h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            <Campo label="Subdirección" ayuda="Se auto-completa al seleccionar la sección">
-              <input
-                type="text"
-                value={infoCronograma.organismo ?? ''}
-                onChange={(e) => setInfoCronograma((v) => ({ ...v, organismo: e.target.value }))}
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="Fecha">
-              <input
-                type="date"
-                value={infoCronograma.fecha ?? ''}
-                onChange={(e) => setInfoCronograma((v) => ({ ...v, fecha: e.target.value }))}
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="Asesor tecnico">
-              <input
-                type="text"
-                value={infoCronograma.asesorTecnico ?? ''}
-                onChange={(e) => setInfoCronograma((v) => ({ ...v, asesorTecnico: e.target.value }))}
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="Fuente de financiamiento">
-              <input
-                type="text"
-                value={infoCronograma.fuenteFinanciamiento ?? ''}
-                onChange={(e) => setInfoCronograma((v) => ({ ...v, fuenteFinanciamiento: e.target.value }))}
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="Telefono celular">
-              <input
-                type="text"
-                value={infoCronograma.telefonoCelular ?? ''}
-                onChange={(e) => setInfoCronograma((v) => ({ ...v, telefonoCelular: e.target.value }))}
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="Extension satelital">
-              <input
-                type="text"
-                value={infoCronograma.extensionSatelital ?? ''}
-                onChange={(e) => setInfoCronograma((v) => ({ ...v, extensionSatelital: e.target.value }))}
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="Nombre del procedimiento">
-              <input
-                type="text"
-                value={infoCronograma.nombreProcedimientoContratacion ?? ''}
-                onChange={(e) =>
-                  setInfoCronograma((v) => ({ ...v, nombreProcedimientoContratacion: e.target.value }))
-                }
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="No. de partidas">
-              <input
-                type="number"
-                min={0}
-                value={infoCronograma.numeroPartidas ?? ''}
-                onChange={(e) =>
-                  setInfoCronograma((v) => ({
-                    ...v,
-                    numeroPartidas: e.target.value ? Number(e.target.value) : undefined,
-                  }))
-                }
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="No. de articulos">
-              <input
-                type="number"
-                min={0}
-                value={infoCronograma.numeroArticulos ?? ''}
-                onChange={(e) =>
-                  setInfoCronograma((v) => ({
-                    ...v,
-                    numeroArticulos: e.target.value ? Number(e.target.value) : undefined,
-                  }))
-                }
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="Capitulo de gasto">
-              <input
-                type="text"
-                value={infoCronograma.capituloGasto ?? ''}
-                onChange={(e) => setInfoCronograma((v) => ({ ...v, capituloGasto: e.target.value }))}
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="Requiere anualidad">
+          <div className="pb-1 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-800">Asesores Técnicos</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Opcional. Pueden asignarse después desde el detalle del procedimiento.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Campo label="AT Titular">
               <select
-                value={
-                  infoCronograma.requiereAnualidad === null || infoCronograma.requiereAnualidad === undefined
-                    ? ''
-                    : infoCronograma.requiereAnualidad
-                    ? 'si'
-                    : 'no'
-                }
-                onChange={(e) =>
-                  setInfoCronograma((v) => ({
-                    ...v,
-                    requiereAnualidad: e.target.value === '' ? null : e.target.value === 'si',
-                  }))
-                }
+                value={asesorTitular}
+                onChange={(e) => setAsesorTitular(e.target.value)}
                 className={SELECT}
-                disabled={enviando}
+                disabled={enviando || !seccionId}
               >
-                <option value="">N/A</option>
-                <option value="si">Si</option>
-                <option value="no">No</option>
+                <option value="">— Sin asignar —</option>
+                {asesoresDisponibles.map((at) => (
+                  <option key={at._id} value={at._id}>
+                    {at.nombre} {at.apellidos}
+                  </option>
+                ))}
               </select>
+              {!seccionId && <p className="text-xs text-gray-400 mt-1">Selecciona primero la sección.</p>}
             </Campo>
-            <Campo label="No. oficio plurianualidad">
-              <input
-                type="text"
-                value={infoCronograma.numeroOficioPlurianualidad ?? ''}
-                onChange={(e) =>
-                  setInfoCronograma((v) => ({ ...v, numeroOficioPlurianualidad: e.target.value }))
-                }
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="Clave de cartera">
-              <input
-                type="text"
-                value={infoCronograma.claveCartera ?? ''}
-                onChange={(e) => setInfoCronograma((v) => ({ ...v, claveCartera: e.target.value }))}
-                className={INPUT}
-                disabled={enviando}
-              />
-            </Campo>
-            <Campo label="No. de clave de cartera">
-              <input
-                type="text"
-                value={infoCronograma.numeroClaveCartera ?? ''}
-                onChange={(e) => setInfoCronograma((v) => ({ ...v, numeroClaveCartera: e.target.value }))}
-                className={INPUT}
-                disabled={enviando}
-              />
+            <Campo label="AT Suplente">
+              <select
+                value={asesorSuplente}
+                onChange={(e) => setAsesorSuplente(e.target.value)}
+                className={SELECT}
+                disabled={enviando || !seccionId}
+              >
+                <option value="">— Sin asignar —</option>
+                {asesoresDisponibles
+                  .filter((at) => at._id !== asesorTitular)
+                  .map((at) => (
+                    <option key={at._id} value={at._id}>
+                      {at.nombre} {at.apellidos}
+                    </option>
+                  ))}
+              </select>
             </Campo>
           </div>
         </section>
 
-        {/* Seccion: Tiempos reducidos */}
+        {/* Tiempos reducidos */}
         <section className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
           <h2 className="text-base font-semibold text-gray-800 pb-1 border-b border-gray-100">
             Tiempos reducidos
@@ -673,7 +466,7 @@ export function NuevoProcedimiento() {
           </label>
 
           {urgente && (
-            <Campo label="Justificacion de tiempos reducidos" requerido>
+            <Campo label="Justificación de tiempos reducidos" requerido>
               <textarea
                 required
                 value={justificacionUrgencia}
@@ -681,7 +474,7 @@ export function NuevoProcedimiento() {
                 rows={2}
                 className={INPUT}
                 disabled={enviando}
-                placeholder="Describa la razon de los tiempos reducidos..."
+                placeholder="Describa la razón de los tiempos reducidos..."
               />
             </Campo>
           )}
@@ -691,7 +484,7 @@ export function NuevoProcedimiento() {
         <div className="flex items-center gap-3 pb-8">
           <button
             type="submit"
-            disabled={enviando || !titulo || !bienServicio || !seccionId || !asesorTitular || !tipoProcedimiento}
+            disabled={enviando || !titulo || !bienServicio || !seccionId || !tipoProcedimiento}
             className="px-5 py-2.5 bg-blue-900 hover:bg-blue-800 disabled:bg-blue-300 text-white text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2"
           >
             {enviando && <Spinner className="text-white h-4 w-4" />}

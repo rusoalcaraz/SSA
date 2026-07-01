@@ -59,65 +59,51 @@ function calcularAlertasEtapas(procedimientos) {
 
 // -------------------------------------------------------
 // Helper: construye el resumen agregado desde un conjunto de procedimientos
-// Regla: si todas las etapas del cronograma estan en 'completado' o marcadas
-// como noAplica=true, se considera la etapaActual efectiva como 'hoja_de_trabajo'
-// (aunque el documento tenga 'cronograma') para efectos del dashboard.
+// agrupacion: 'dg' | 'seccion' | 'asesor'
 // -------------------------------------------------------
-async function construirResumen(filtroProcedimientos) {
-  const [
-    porTipoProcedimiento,
-    totalUrgentes,
-    porDG,
-    procedimientosConEtapas,
-  ] = await Promise.all([
-    // Conteo por tipo de procedimiento
+async function construirResumen(filtroProcedimientos, { agrupacion = 'dg' } = {}) {
+  const agregarPorGrupo = agrupacion === 'subdireccion'
+    ? Procedimiento.aggregate([
+        { $match: filtroProcedimientos },
+        { $group: { _id: '$subdireccion', total: { $sum: 1 }, urgentes: { $sum: { $cond: ['$urgente', 1, 0] } } } },
+        { $lookup: { from: 'subdireccions', localField: '_id', foreignField: '_id', as: 'sub' } },
+        { $unwind: { path: '$sub', preserveNullAndEmptyArrays: true } },
+        { $project: { _id: 1, nombre: '$sub.nombre', total: 1, urgentes: 1 } },
+        { $sort: { total: -1 } },
+      ])
+    : agrupacion === 'seccion'
+    ? Procedimiento.aggregate([
+        { $match: filtroProcedimientos },
+        { $group: { _id: '$seccion', total: { $sum: 1 }, urgentes: { $sum: { $cond: ['$urgente', 1, 0] } } } },
+        { $lookup: { from: 'seccions', localField: '_id', foreignField: '_id', as: 'sec' } },
+        { $unwind: { path: '$sec', preserveNullAndEmptyArrays: true } },
+        { $project: { _id: 1, nombre: '$sec.nombre', total: 1, urgentes: 1 } },
+        { $sort: { total: -1 } },
+      ])
+    : agrupacion === 'asesor'
+    ? Procedimiento.aggregate([
+        { $match: filtroProcedimientos },
+        { $group: { _id: '$asesorTitular', total: { $sum: 1 }, urgentes: { $sum: { $cond: ['$urgente', 1, 0] } } } },
+        { $lookup: { from: 'usuarios', localField: '_id', foreignField: '_id', as: 'usr' } },
+        { $unwind: { path: '$usr', preserveNullAndEmptyArrays: true } },
+        { $project: { _id: 1, nombre: { $ifNull: [{ $concat: ['$usr.nombre', ' ', '$usr.apellidos'] }, 'Sin asignar'] }, total: 1, urgentes: 1 } },
+        { $sort: { total: -1 } },
+      ])
+    : [];
+
+  const [porGrupo, totalUrgentes, porTipoProcedimiento, procedimientosConEtapas] = await Promise.all([
+    agregarPorGrupo,
+    Procedimiento.countDocuments({ ...filtroProcedimientos, urgente: true }),
     Procedimiento.aggregate([
       { $match: filtroProcedimientos },
       { $group: { _id: '$tipoProcedimiento', total: { $sum: 1 } } },
       { $sort: { total: -1 } },
     ]),
-
-    // Total urgentes
-    Procedimiento.countDocuments({ ...filtroProcedimientos, urgente: true }),
-
-    // Conteo por DG (con nombre de DG)
-    Procedimiento.aggregate([
-      { $match: filtroProcedimientos },
-      {
-        $group: {
-          _id: '$direccionGeneral',
-          total: { $sum: 1 },
-          urgentes: { $sum: { $cond: ['$urgente', 1, 0] } },
-        },
-      },
-      {
-        $lookup: {
-          from: 'direcciongenerals',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'dg',
-        },
-      },
-      { $unwind: { path: '$dg', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          _id: 1,
-          nombre: '$dg.nombre',
-          siglas: '$dg.siglas',
-          total: 1,
-          urgentes: 1,
-        },
-      },
-      { $sort: { total: -1 } },
-    ]),
-
-    // Traer etapas para calcular alertas de vencimiento y etapa efectiva
     Procedimiento.find(filtroProcedimientos)
       .select('etapaActual cronograma.estado cronograma.noAplica cronograma.fechaPlaneada hojaDeTrabajoEtapas.estado hojaDeTrabajoEtapas.fechaPlaneada')
       .lean(),
   ]);
 
-  // Calcular etapaActual efectiva por procedimiento
   const conteoEtapas = {};
   for (const proc of procedimientosConEtapas) {
     let etapa = proc.etapaActual || 'cronograma';
@@ -137,7 +123,9 @@ async function construirResumen(filtroProcedimientos) {
     totalUrgentes,
     porEtapaActual: conteoEtapas,
     porTipoProcedimiento: Object.fromEntries(porTipoProcedimiento.map((e) => [e._id, e.total])),
-    porDireccionGeneral: porDG,
+    porSubdireccion: agrupacion === 'subdireccion' ? porGrupo : [],
+    porSeccion: agrupacion === 'seccion' ? porGrupo : [],
+    porAsesor: agrupacion === 'asesor' ? porGrupo : [],
     alertas: { etapasVencidas, etapasProximasAVencer },
   };
 }
@@ -170,7 +158,9 @@ async function resumen(req, res, next) {
   try {
     const { anioFiscal } = req.query;
     const filtro = construirFiltroDashboard(req.usuario, anioFiscal);
-    const datos = await construirResumen(filtro);
+    const rol = req.usuario?.rol;
+    const agrupacion = rol === 'subdirector' ? 'seccion' : rol === 'jefe_seccion' ? 'asesor' : 'subdireccion';
+    const datos = await construirResumen(filtro, { agrupacion });
     return ok(res, datos, 'Resumen general obtenido');
   } catch (error) {
     next(error);

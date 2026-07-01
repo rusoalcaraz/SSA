@@ -366,7 +366,7 @@ export function LineaDelTiempo() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-blue-800 px-6 py-5 shadow-md">
+      <div className="rounded-2xl bg-linear-to-r from-slate-900 via-blue-950 to-blue-800 px-6 py-5 shadow-md">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl font-extrabold text-white tracking-tight">Linea del tiempo</h1>
@@ -470,7 +470,7 @@ export function LineaDelTiempo() {
                 setAnioFiscal('')
                 setQ('')
                 setTipoProcedimiento('')
-                if (esGlobal) setDgId('')
+                if (esGlobal) setSubdireccionId('')
               }}
               className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
             >

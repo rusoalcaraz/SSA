@@ -1,18 +1,22 @@
 import { api } from './api'
 import type { ApiResponse, EtapaActual, Paginacion, Procedimiento, TipoProcedimiento } from '../types'
 
+export interface ItemAgrupado {
+  _id: string
+  nombre: string
+  siglas?: string
+  total: number
+  urgentes: number
+}
+
 export interface ResumenDashboard {
   totalProcedimientos: number
   totalUrgentes: number
   porEtapaActual: Partial<Record<EtapaActual, number>>
   porTipoProcedimiento: Partial<Record<TipoProcedimiento, number>>
-  porDireccionGeneral: {
-    _id: string
-    nombre: string
-    siglas: string
-    total: number
-    urgentes: number
-  }[]
+  porSubdireccion: ItemAgrupado[]
+  porSeccion: ItemAgrupado[]
+  porAsesor: ItemAgrupado[]
   alertas: {
     etapasVencidas: number
     etapasProximasAVencer: number
