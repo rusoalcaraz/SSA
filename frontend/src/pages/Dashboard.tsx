@@ -426,11 +426,21 @@ export function Dashboard() {
                         </span>
                       </div>
                       <p className="text-sm font-semibold text-gray-800 leading-snug truncate">{proc.titulo}</p>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                        {proc.direccionGeneral && (
-                          <span>{proc.direccionGeneral.siglas}</span>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
+                        {proc.subdireccion && (
+                          <span className="flex items-center gap-1">
+                            <span className="text-gray-300">Subdirección:</span>
+                            {proc.subdireccion.nombre}
+                          </span>
                         )}
-                        <span>
+                        {proc.seccion && (
+                          <span className="flex items-center gap-1">
+                            <span className="text-gray-300">Sección:</span>
+                            {proc.seccion.nombre}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <span className="text-gray-300">Asesor:</span>
                           {proc.asesorTitular
                             ? `${proc.asesorTitular.nombre} ${proc.asesorTitular.apellidos}`
                             : 'pendiente por designar'}

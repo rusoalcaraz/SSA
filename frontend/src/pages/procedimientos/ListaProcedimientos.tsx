@@ -2,6 +2,7 @@ import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { procedimientosService, type FiltroProcedimientos } from '../../services/procedimientos.service'
+import { reportesService } from '../../services/reportes.service'
 import type {
   Procedimiento,
   EtapaActual,
@@ -236,6 +237,9 @@ export function ListaProcedimientos() {
   const [detallesCache, setDetallesCache] = useState<Record<string, Procedimiento>>({})
   const [cargandoDetalle, setCargandoDetalle] = useState<Record<string, boolean>>({})
 
+  const [descargandoPDF, setDescargandoPDF] = useState<Set<string>>(new Set())
+  const [descargandoExcel, setDescargandoExcel] = useState<Set<string>>(new Set())
+
   const cargar = useCallback(async (f: FiltroProcedimientos) => {
     setCargando(true)
     setError(null)
@@ -286,6 +290,36 @@ export function ListaProcedimientos() {
 
   function limpiarFiltros() {
     setFiltros({ page: 1, limit: 20 })
+  }
+
+  async function handleDescargarPDF(e: React.MouseEvent, proc: Procedimiento) {
+    e.stopPropagation()
+    if (descargandoPDF.has(proc._id)) return
+    setDescargandoPDF((prev) => new Set(prev).add(proc._id))
+    try {
+      const slug = proc.numeroProcedimiento ?? proc._id
+      await reportesService.descargarPDF(
+        { procedimientoId: proc._id },
+        `SSA-${slug}.pdf`
+      )
+    } finally {
+      setDescargandoPDF((prev) => { const next = new Set(prev); next.delete(proc._id); return next })
+    }
+  }
+
+  async function handleDescargarExcel(e: React.MouseEvent, proc: Procedimiento) {
+    e.stopPropagation()
+    if (descargandoExcel.has(proc._id)) return
+    setDescargandoExcel((prev) => new Set(prev).add(proc._id))
+    try {
+      const slug = proc.numeroProcedimiento ?? proc._id
+      await reportesService.descargarExcel(
+        { procedimientoId: proc._id },
+        `SSA-${slug}.xlsx`
+      )
+    } finally {
+      setDescargandoExcel((prev) => { const next = new Set(prev); next.delete(proc._id); return next })
+    }
   }
 
   const puedeCrear = tieneRol('administrador', 'adquisiciones', 'subdirector')
@@ -439,6 +473,9 @@ export function ListaProcedimientos() {
                 <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                   Anio
                 </th>
+                <th className="px-3 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide text-center">
+                  Reporte
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -517,11 +554,51 @@ export function ListaProcedimientos() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{proc.anioFiscal}</td>
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => handleDescargarPDF(e, proc)}
+                          disabled={descargandoPDF.has(proc._id)}
+                          title="Descargar reporte PDF de este procedimiento"
+                          className="flex items-center justify-center h-7 w-7 rounded text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                        >
+                          {descargandoPDF.has(proc._id) ? (
+                            <Spinner className="h-4 w-4 text-red-400" />
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <line x1="9" y1="13" x2="15" y2="13" />
+                              <line x1="9" y1="17" x2="15" y2="17" />
+                              <line x1="9" y1="9" x2="11" y2="9" />
+                            </svg>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDescargarExcel(e, proc)}
+                          disabled={descargandoExcel.has(proc._id)}
+                          title="Descargar reporte Excel de este procedimiento"
+                          className="flex items-center justify-center h-7 w-7 rounded text-green-700 hover:bg-green-50 disabled:opacity-40 transition-colors"
+                        >
+                          {descargandoExcel.has(proc._id) ? (
+                            <Spinner className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <path d="M8 13l2 2 4-4" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
 
                   {expandidos.has(proc._id) && (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={8} className="p-0">
                         {cargandoDetalle[proc._id] ? (
                           <div className="flex justify-center py-8 bg-slate-50 border-t border-slate-200">
                             <Spinner className="text-blue-900" />

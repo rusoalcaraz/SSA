@@ -103,9 +103,6 @@ function NavItems({ colapsado }: { colapsado: boolean }) {
     items.push({ to: '/procedimientos', label: 'Procedimientos', icon: 'procedimientos' })
   }
   if (tieneRol('administrador', 'adquisiciones', 'subdirector', 'jefe_seccion')) {
-    items.push({ to: '/reportes', label: 'Reportes', icon: 'reportes' })
-  }
-  if (tieneRol('administrador', 'adquisiciones', 'subdirector', 'jefe_seccion')) {
     items.push({ to: '/admin/usuarios', label: 'Usuarios', icon: 'usuarios' })
   }
   if (tieneRol('administrador', 'subdirector')) {
