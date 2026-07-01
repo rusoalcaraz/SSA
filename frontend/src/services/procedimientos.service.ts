@@ -98,6 +98,14 @@ async function marcarUrgente(
   return data.data
 }
 
+async function actualizarAsesores(
+  id: string,
+  payload: { asesorTitular?: string | null; asesorSuplente?: string | null }
+): Promise<Procedimiento> {
+  const { data } = await api.put<ApiResponse<Procedimiento>>(`/procedimientos/${id}`, payload)
+  return data.data
+}
+
 async function actualizarInfoCronograma(
   id: string,
   payload: Partial<InfoCronograma>
@@ -125,6 +133,7 @@ export const procedimientosService = {
   obtener,
   crear,
   actualizar,
+  actualizarAsesores,
   marcarUrgente,
   actualizarInfoCronograma,
   actualizarInfoHojaDeTrabajo,

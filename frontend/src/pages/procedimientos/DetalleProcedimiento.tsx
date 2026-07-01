@@ -1,13 +1,32 @@
 import { useState, useEffect } from 'react'
 import { useParams, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { procedimientosService } from '../../services/procedimientos.service'
+import { usuariosService } from '../../services/usuarios.service'
 import { mensajeDeError } from '../../services/api'
-import type { Procedimiento, InfoCronograma, InfoHojaDeTrabajo } from '../../types'
+import type { Procedimiento, InfoCronograma, InfoHojaDeTrabajo, UsuarioResumen } from '../../types'
 import { useAuth } from '../../hooks/useAuth'
 import { Badge } from '../../components/ui/Badge'
 import { Spinner } from '../../components/ui/Spinner'
 import { Modal } from '../../components/ui/Modal'
 import { ETIQUETA_ETAPA, formatearMonto } from '../../utils/formato'
+
+const FUENTES_FINANCIAMIENTO = [
+  'Subsidio Federal',
+  'Ingresos Propios',
+  'Fondo Sectorial CONAHCYT',
+  'Fondo Institucional',
+  'Crédito Externo',
+  'Convenio de Colaboración',
+]
+
+const CAPITULOS_GASTO = [
+  '1000 - Servicios Personales',
+  '2000 - Materiales y Suministros',
+  '3000 - Servicios Generales',
+  '4000 - Transferencias, Asignaciones y Subsidios',
+  '5000 - Bienes Muebles, Inmuebles e Intangibles',
+  '6000 - Inversión Pública',
+]
 
 const INPUT = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
 const LABEL = 'block text-xs font-medium text-gray-600 mb-1'
@@ -47,14 +66,29 @@ export function DetalleProcedimiento() {
   const [modalInfo, setModalInfo] = useState(false)
   const [formInfo, setFormInfo] = useState<InfoCronograma>({})
   const [formHoja, setFormHoja] = useState<Pick<InfoHojaDeTrabajo, 'techoPresupuestal'>>({})
+  const [formAsesores, setFormAsesores] = useState<{ asesorTitular: string; asesorSuplente: string }>({ asesorTitular: '', asesorSuplente: '' })
+  const [asesores, setAsesores] = useState<UsuarioResumen[]>([])
   const [enviandoInfo, setEnviandoInfo] = useState(false)
   const [errorInfo, setErrorInfo] = useState<string | null>(null)
 
   function abrirModalInfo() {
     setFormInfo({ ...(procedimiento?.infoCronograma ?? {}) })
     setFormHoja({ techoPresupuestal: procedimiento?.infoHojaDeTrabajo?.techoPresupuestal })
+    const titularId = typeof procedimiento?.asesorTitular === 'object' && procedimiento?.asesorTitular
+      ? (procedimiento.asesorTitular as UsuarioResumen)._id
+      : (procedimiento?.asesorTitular as string | undefined) ?? ''
+    const suplenteId = typeof procedimiento?.asesorSuplente === 'object' && procedimiento?.asesorSuplente
+      ? (procedimiento.asesorSuplente as UsuarioResumen)._id
+      : (procedimiento?.asesorSuplente as string | undefined) ?? ''
+    setFormAsesores({ asesorTitular: titularId, asesorSuplente: suplenteId })
     setErrorInfo(null)
     setModalInfo(true)
+    if (procedimiento?.seccion) {
+      const seccionId = typeof procedimiento.seccion === 'object'
+        ? procedimiento.seccion._id
+        : procedimiento.seccion
+      usuariosService.listarAsesoresPorSeccion(seccionId).then(setAsesores).catch(() => setAsesores([]))
+    }
   }
 
   function setInfoField(campo: keyof InfoCronograma, valor: string | number | boolean | null) {
@@ -70,10 +104,19 @@ export function DetalleProcedimiento() {
     setErrorInfo(null)
     setEnviandoInfo(true)
     try {
-      await Promise.all([
+      const promesas: Promise<unknown>[] = [
         procedimientosService.actualizarInfoCronograma(procedimiento._id, formInfo),
         procedimientosService.actualizarInfoHojaDeTrabajo(procedimiento._id, formHoja),
-      ])
+      ]
+      if (puedeAsignarAsesores) {
+        promesas.push(
+          procedimientosService.actualizarAsesores(procedimiento._id, {
+            asesorTitular: formAsesores.asesorTitular || null,
+            asesorSuplente: formAsesores.asesorSuplente || null,
+          })
+        )
+      }
+      await Promise.all(promesas)
       recargar()
       setModalInfo(false)
     } catch (err) {
@@ -110,6 +153,7 @@ export function DetalleProcedimiento() {
   }
 
   const puedeEditarInfo = tieneRol('administrador', 'adquisiciones', 'subdirector', 'asesor_tecnico')
+  const puedeAsignarAsesores = tieneRol('administrador', 'adquisiciones', 'subdirector')
   const puedeVerCronograma = tieneRol(
     'administrador',
     'adquisiciones',
@@ -132,7 +176,9 @@ export function DetalleProcedimiento() {
 
   const tieneInfo =
     Object.values(procedimiento.infoCronograma ?? {}).some((v) => !campoVacio(v)) ||
-    typeof procedimiento.infoHojaDeTrabajo?.techoPresupuestal === 'number'
+    typeof procedimiento.infoHojaDeTrabajo?.techoPresupuestal === 'number' ||
+    !!procedimiento.asesorTitular ||
+    !!procedimiento.asesorSuplente
 
   return (
     <div>
@@ -189,7 +235,8 @@ export function DetalleProcedimiento() {
                 <CampoInfo label="Subdirección" valor={typeof procedimiento.subdireccion === 'object' && procedimiento.subdireccion ? (procedimiento.subdireccion as { nombre: string }).nombre : undefined} />
                 <CampoInfo label="Sección" valor={typeof procedimiento.seccion === 'object' && procedimiento.seccion ? (procedimiento.seccion as { nombre: string }).nombre : undefined} />
                 <CampoInfo label="Fecha" valor={info.fecha ? new Date(info.fecha).toLocaleDateString('es-MX') : undefined} />
-                <CampoInfo label="Asesor tecnico" valor={info.asesorTecnico} />
+                <CampoInfo label="Asesor técnico" valor={typeof procedimiento.asesorTitular === 'object' && procedimiento.asesorTitular ? `${(procedimiento.asesorTitular as UsuarioResumen).nombre} ${(procedimiento.asesorTitular as UsuarioResumen).apellidos}` : undefined} />
+                <CampoInfo label="Asesor técnico adjunto" valor={typeof procedimiento.asesorSuplente === 'object' && procedimiento.asesorSuplente ? `${(procedimiento.asesorSuplente as UsuarioResumen).nombre} ${(procedimiento.asesorSuplente as UsuarioResumen).apellidos}` : undefined} />
                 <CampoInfo label="Fuente de financiamiento" valor={info.fuenteFinanciamiento} />
                 <CampoInfo label="Telefono celular" valor={info.telefonoCelular} />
                 <CampoInfo label="Extension satelital" valor={info.extensionSatelital} />
@@ -243,10 +290,38 @@ export function DetalleProcedimiento() {
       {modalInfo && (
         <Modal titulo="Datos generales del cronograma" onClose={() => !enviandoInfo && setModalInfo(false)} className="max-w-2xl">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={LABEL}>Subdirección</label>
-              <input className={INPUT} value={formInfo.organismo ?? ''} onChange={(e) => setInfoField('organismo', e.target.value)} />
-            </div>
+            {/* Asesores técnicos — solo para roles con permiso */}
+            {puedeAsignarAsesores && (
+              <>
+                <div>
+                  <label className={LABEL}>Asesor técnico titular</label>
+                  <select
+                    className={INPUT}
+                    value={formAsesores.asesorTitular}
+                    onChange={(e) => setFormAsesores((p) => ({ ...p, asesorTitular: e.target.value }))}
+                  >
+                    <option value="">— Sin asignar —</option>
+                    {asesores.map((a) => (
+                      <option key={a._id} value={a._id}>{a.nombre} {a.apellidos}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={LABEL}>Asesor técnico adjunto</label>
+                  <select
+                    className={INPUT}
+                    value={formAsesores.asesorSuplente}
+                    onChange={(e) => setFormAsesores((p) => ({ ...p, asesorSuplente: e.target.value }))}
+                  >
+                    <option value="">— Sin asignar —</option>
+                    {asesores.map((a) => (
+                      <option key={a._id} value={a._id}>{a.nombre} {a.apellidos}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
             <div>
               <label className={LABEL}>Fecha</label>
               <input
@@ -257,23 +332,28 @@ export function DetalleProcedimiento() {
               />
             </div>
             <div>
-              <label className={LABEL}>Asesor tecnico</label>
-              <input className={INPUT} value={formInfo.asesorTecnico ?? ''} onChange={(e) => setInfoField('asesorTecnico', e.target.value)} />
-            </div>
-            <div>
               <label className={LABEL}>Fuente de financiamiento</label>
-              <input className={INPUT} value={formInfo.fuenteFinanciamiento ?? ''} onChange={(e) => setInfoField('fuenteFinanciamiento', e.target.value)} />
+              <select
+                className={INPUT}
+                value={formInfo.fuenteFinanciamiento ?? ''}
+                onChange={(e) => setInfoField('fuenteFinanciamiento', e.target.value)}
+              >
+                <option value="">— Seleccionar —</option>
+                {FUENTES_FINANCIAMIENTO.map((f) => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className={LABEL}>Telefono celular (asesor tecnico)</label>
+              <label className={LABEL}>Teléfono celular (asesor técnico)</label>
               <input className={INPUT} value={formInfo.telefonoCelular ?? ''} onChange={(e) => setInfoField('telefonoCelular', e.target.value)} />
             </div>
             <div>
-              <label className={LABEL}>Extension satelital</label>
+              <label className={LABEL}>Extensión satelital</label>
               <input className={INPUT} value={formInfo.extensionSatelital ?? ''} onChange={(e) => setInfoField('extensionSatelital', e.target.value)} />
             </div>
             <div className="sm:col-span-2">
-              <label className={LABEL}>Nombre del procedimiento de contratacion</label>
+              <label className={LABEL}>Nombre del procedimiento de contratación</label>
               <input className={INPUT} value={formInfo.nombreProcedimientoContratacion ?? ''} onChange={(e) => setInfoField('nombreProcedimientoContratacion', e.target.value)} />
             </div>
             <div>
@@ -287,7 +367,7 @@ export function DetalleProcedimiento() {
               />
             </div>
             <div>
-              <label className={LABEL}>No. de articulos</label>
+              <label className={LABEL}>No. de artículos</label>
               <input
                 type="number"
                 min={0}
@@ -297,8 +377,17 @@ export function DetalleProcedimiento() {
               />
             </div>
             <div>
-              <label className={LABEL}>Capitulo de gasto</label>
-              <input className={INPUT} value={formInfo.capituloGasto ?? ''} onChange={(e) => setInfoField('capituloGasto', e.target.value)} />
+              <label className={LABEL}>Capítulo de gasto</label>
+              <select
+                className={INPUT}
+                value={formInfo.capituloGasto ?? ''}
+                onChange={(e) => setInfoField('capituloGasto', e.target.value)}
+              >
+                <option value="">— Seleccionar —</option>
+                {CAPITULOS_GASTO.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={LABEL}>Requiere anualidad</label>

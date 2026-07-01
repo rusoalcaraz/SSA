@@ -42,8 +42,8 @@ export function Modal({ titulo, onClose, children, className = '' }: Props) {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className={`bg-white rounded-lg shadow-xl w-full max-w-md ${className}`}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+      <div className={`bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[90vh] ${className}`}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
           <h3 className="text-base font-semibold text-gray-900">{titulo}</h3>
           <button
             onClick={onClose}
@@ -52,7 +52,7 @@ export function Modal({ titulo, onClose, children, className = '' }: Props) {
             ×
           </button>
         </div>
-        <div className="px-5 py-4">{children}</div>
+        <div className="px-5 py-4 overflow-y-auto">{children}</div>
       </div>
     </div>
   )

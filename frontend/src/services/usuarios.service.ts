@@ -50,6 +50,13 @@ async function listarAsesores(): Promise<UsuarioResumen[]> {
   return data.data
 }
 
+async function listarAsesoresPorSeccion(seccionId: string): Promise<UsuarioResumen[]> {
+  const { data } = await api.get<ApiResponse<UsuarioResumen[]>>('/usuarios', {
+    params: { rol: 'asesor_tecnico', activo: true, seccionId, limit: 100 },
+  })
+  return data.data
+}
+
 async function listar(filtros: FiltroUsuarios = {}): Promise<ListaUsuariosResponse> {
   const params: Record<string, string | number | boolean> = {}
   if (filtros.page) params.page = filtros.page
@@ -87,6 +94,7 @@ async function resetPassword(id: string, contrasenaNueva: string): Promise<void>
 
 export const usuariosService = {
   listarAsesores,
+  listarAsesoresPorSeccion,
   listar,
   crear,
   actualizar,
