@@ -250,6 +250,8 @@ export interface Procedimiento {
   etapasConAlerta?: EtapaConAlerta[]
   // Elementos pendientes de validacion por el IA (AT propuso conclusión)
   pendientesValidacion?: number
+  // Etapa visual corregida: avanza cronograma→hoja_de_trabajo→entregas cuando todo está completado
+  etapaEfectiva?: EtapaActual
 }
 
 export interface EtapaConAlerta {

@@ -120,13 +120,31 @@ async function listar(req, res, next) {
       Procedimiento.countDocuments(filtro),
     ]);
 
-    // Agregar conteo de elementos pendientes de validacion por el IA
+    // Agregar conteo de pendientes de validacion y calcular etapaEfectiva
     const ids = procedimientos.map((p) => p._id);
+
+    // Helper: $size de etapas "bloqueantes" (no noAplica y no completado)
+    const bloqueantes = (campo) => ({
+      $size: {
+        $filter: {
+          input: { $ifNull: [`$${campo}`, []] },
+          as: 'e',
+          cond: {
+            $and: [
+              { $ne: ['$$e.noAplica', true] },
+              { $ne: ['$$e.estado', 'completado'] },
+            ],
+          },
+        },
+      },
+    });
+
     const conteos = ids.length > 0
       ? await Procedimiento.aggregate([
           { $match: { _id: { $in: ids } } },
           {
             $project: {
+              etapaActual: 1,
               pendientesValidacion: {
                 $add: [
                   {
@@ -158,19 +176,43 @@ async function listar(req, res, next) {
                   },
                 ],
               },
+              // Cronograma completo: tiene etapas y ninguna bloquea
+              cronogramaCompleto: {
+                $and: [
+                  { $gt: [{ $size: { $ifNull: ['$cronograma', []] } }, 0] },
+                  { $eq: [bloqueantes('cronograma'), 0] },
+                ],
+              },
+              // Hoja de trabajo completa: tiene etapas y ninguna bloquea
+              hojaCompletada: {
+                $and: [
+                  { $gt: [{ $size: { $ifNull: ['$hojaDeTrabajoEtapas', []] } }, 0] },
+                  { $eq: [bloqueantes('hojaDeTrabajoEtapas'), 0] },
+                ],
+              },
             },
           },
         ])
       : [];
 
-    const conteoPorId = Object.fromEntries(
-      conteos.map((c) => [c._id.toString(), c.pendientesValidacion])
+    const datosPorId = Object.fromEntries(
+      conteos.map((c) => [c._id.toString(), c])
     );
 
-    const resultado = procedimientos.map((p) => ({
-      ...p,
-      pendientesValidacion: conteoPorId[p._id.toString()] || 0,
-    }));
+    const resultado = procedimientos.map((p) => {
+      const datos = datosPorId[p._id.toString()] || {};
+      let etapaEfectiva = p.etapaActual;
+      if (p.etapaActual === 'cronograma' && datos.cronogramaCompleto) {
+        etapaEfectiva = 'hoja_de_trabajo';
+      } else if (p.etapaActual === 'hoja_de_trabajo' && datos.hojaCompletada) {
+        etapaEfectiva = 'entregas';
+      }
+      return {
+        ...p,
+        pendientesValidacion: datos.pendientesValidacion || 0,
+        etapaEfectiva,
+      };
+    });
 
     return ok(res, resultado, 'Procedimientos obtenidos', 200, {
       page,

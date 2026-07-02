@@ -534,8 +534,16 @@ export function ListaProcedimientos() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <Badge etapa={proc.etapaActual}>
-                          {ETIQUETA_ETAPA[proc.etapaActual]}
+                        <Badge etapa={proc.etapaEfectiva ?? proc.etapaActual}>
+                          {ETIQUETA_ETAPA[proc.etapaEfectiva ?? proc.etapaActual]}
+                          {proc.etapaEfectiva && proc.etapaEfectiva !== proc.etapaActual && (
+                            <span
+                              className="ml-1 opacity-60 text-[9px]"
+                              title="El sistema registra la etapa anterior como activa, pero todas sus actividades están concluidas"
+                            >
+                              ↑
+                            </span>
+                          )}
                         </Badge>
                         {proc.etapasConAlerta && proc.etapasConAlerta.length > 0 && (
                           <span
