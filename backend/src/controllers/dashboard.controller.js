@@ -331,10 +331,9 @@ async function kpiDetalle(req, res, next) {
     const { tipo, anioFiscal } = req.query;
     const filtroBase = construirFiltroDashboard(req.usuario, anioFiscal);
 
-    const CAMPOS_BASE = 'numeroProcedimiento titulo tipoProcedimiento etapaActual urgente subdireccion seccion asesorTitular';
+    const CAMPOS_BASE = 'numeroProcedimiento titulo tipoProcedimiento etapaActual urgente direccionGeneral asesorTitular';
     const POPULATE_OPTIONS = [
-      { path: 'subdireccion', select: 'nombre' },
-      { path: 'seccion', select: 'nombre' },
+      { path: 'direccionGeneral', select: 'nombre siglas' },
       { path: 'asesorTitular', select: 'nombre apellidos' },
     ];
 

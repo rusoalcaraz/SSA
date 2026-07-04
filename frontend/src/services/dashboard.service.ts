@@ -32,8 +32,7 @@ export interface ProcedimientoKPI {
   tipoProcedimiento: TipoProcedimiento
   etapaActual: EtapaActual
   urgente: boolean
-  subdireccion?: { _id: string; nombre: string }
-  seccion?: { _id: string; nombre: string }
+  direccionGeneral?: { _id: string; nombre: string; siglas: string }
   asesorTitular?: { _id: string; nombre: string; apellidos: string }
   etapasRelevantes?: { nombre: string; fechaPlaneada: string }[]
 }
