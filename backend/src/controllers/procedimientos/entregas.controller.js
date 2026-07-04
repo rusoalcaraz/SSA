@@ -11,6 +11,16 @@ const {
   puedeVerProcedimiento,
 } = require('../../services/procedimiento.service');
 
+function crearRegistroEvidencia(file, usuarioId) {
+  return {
+    nombre: file.originalname,
+    ruta: file.path,
+    mimeType: file.mimetype,
+    cargadoPor: usuarioId,
+    validacionEstado: 'pendiente',
+  };
+}
+
 // -------------------------------------------------------
 // GET /api/v1/procedimientos/:id/entregas
 // Roles: administrador, oficialia_mayor, dir_gral_admon, integrante_adquisiciones, asesor_tecnico
@@ -20,7 +30,10 @@ async function listar(req, res, next) {
     const procedimiento = await Procedimiento.findById(req.params.id)
       .select('entregas direccionGeneral asesorTitular asesorSuplente etapaActual')
       .populate('entregas.registradoPor', 'nombre apellidos')
-      .populate('entregas.documentos.cargadoPor', 'nombre apellidos');
+      .populate('entregas.propuestoPor', 'nombre apellidos')
+      .populate('entregas.documentos.cargadoPor', 'nombre apellidos')
+      .populate('entregas.evidencias.cargadoPor', 'nombre apellidos')
+      .populate('entregas.evidencias.validadoPor', 'nombre apellidos');
 
     if (!procedimiento) {
       throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
@@ -218,11 +231,7 @@ async function proponerRecibida(req, res, next) {
     entrega.propuestoEn = new Date();
 
     if (req.file) {
-      entrega.evidencias.push({
-        nombre: req.file.originalname,
-        ruta: req.file.path,
-        cargadoPor: req.usuario.id,
-      });
+      entrega.evidencias.push(crearRegistroEvidencia(req.file, req.usuario.id));
     }
 
     await procedimiento.save();
@@ -304,6 +313,119 @@ async function validarEntrega(req, res, next) {
 }
 
 // -------------------------------------------------------
+// POST /:id/entregas/:entregaId/evidencia  — AT
+// -------------------------------------------------------
+async function subirEvidencia(req, res, next) {
+  try {
+    if (!req.file) {
+      throw crearError(400, 'ARCHIVO_REQUERIDO', 'Se requiere una imagen o un archivo PDF');
+    }
+    const { reemplazaEvidenciaId } = req.body;
+
+    const procedimiento = await Procedimiento.findById(req.params.id);
+    if (!procedimiento) {
+      throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    if (!esMiProcedimiento(procedimiento, req.usuario.id) && req.usuario.rol !== 'administrador') {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo el asesor tecnico asignado puede cargar evidencias');
+    }
+
+    const entrega = procedimiento.entregas.id(req.params.entregaId);
+    if (!entrega) {
+      throw crearError(404, 'ENTREGA_NO_ENCONTRADA', 'Entrega no encontrada');
+    }
+
+    let reemplazaArchivoId;
+    if (reemplazaEvidenciaId) {
+      const evidenciaAnterior = entrega.evidencias.id(reemplazaEvidenciaId);
+      if (!evidenciaAnterior) {
+        throw crearError(404, 'EVIDENCIA_NO_ENCONTRADA', 'La evidencia a reemplazar no existe');
+      }
+      if (evidenciaAnterior.validacionEstado !== 'rechazada') {
+        throw crearError(409, 'EVIDENCIA_NO_RECHAZADA', 'Solo se puede reemplazar una evidencia rechazada');
+      }
+      reemplazaArchivoId = evidenciaAnterior._id;
+    }
+
+    entrega.evidencias.push({
+      ...crearRegistroEvidencia(req.file, req.usuario.id),
+      ...(reemplazaArchivoId ? { reemplazaEvidenciaId: reemplazaArchivoId } : {}),
+    });
+    await procedimiento.save();
+
+    const evidencia = entrega.evidencias[entrega.evidencias.length - 1];
+
+    await auditLog.registrar({
+      usuarioId: req.usuario.id,
+      accion: 'CARGA_EVIDENCIA_ENTREGA',
+      recurso: 'entrega',
+      recursoId: entrega._id,
+      detalle: { procedimientoId: procedimiento._id, archivo: req.file.filename },
+      req,
+    });
+
+    return ok(res, evidencia, 'Evidencia cargada correctamente');
+  } catch (error) {
+    next(error);
+  }
+}
+
+// -------------------------------------------------------
+// PATCH /:id/entregas/:entregaId/evidencia/:archivoId/validar
+// -------------------------------------------------------
+async function validarEvidencia(req, res, next) {
+  try {
+    const { respuesta, comentario } = req.body;
+    if (!['aceptar', 'rechazar'].includes(respuesta)) {
+      throw crearError(400, 'RESPUESTA_INVALIDA', 'La respuesta debe ser "aceptar" o "rechazar"');
+    }
+    if (respuesta === 'rechazar' && !String(comentario || '').trim()) {
+      throw crearError(400, 'MOTIVO_REQUERIDO', 'El motivo de rechazo es obligatorio');
+    }
+
+    const procedimiento = await Procedimiento.findById(req.params.id);
+    if (!procedimiento) {
+      throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    if (!['administrador', 'adquisiciones'].includes(req.usuario.rol)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo administrador o adquisiciones pueden validar evidencias');
+    }
+
+    const entrega = procedimiento.entregas.id(req.params.entregaId);
+    if (!entrega) {
+      throw crearError(404, 'ENTREGA_NO_ENCONTRADA', 'Entrega no encontrada');
+    }
+
+    const evidencia = entrega.evidencias.id(req.params.archivoId);
+    if (!evidencia) {
+      throw crearError(404, 'ARCHIVO_NO_ENCONTRADO', 'Archivo de evidencia no encontrado');
+    }
+
+    evidencia.validacionEstado = respuesta === 'aceptar' ? 'validada' : 'rechazada';
+    evidencia.validadoPor = req.usuario.id;
+    evidencia.validadaEn = new Date();
+    evidencia.comentarioValidacion = comentario || undefined;
+
+    await procedimiento.save();
+
+    await auditLog.registrar({
+      usuarioId: req.usuario.id,
+      accion: respuesta === 'aceptar' ? 'VALIDAR_EVIDENCIA_ENTREGA' : 'RECHAZAR_EVIDENCIA_ENTREGA',
+      recurso: 'entrega',
+      recursoId: entrega._id,
+      detalle: { procedimientoId: procedimiento._id, archivoId: evidencia._id, comentario },
+      req,
+    });
+
+    return ok(res, evidencia, respuesta === 'aceptar' ? 'Evidencia validada' : 'Evidencia rechazada');
+  } catch (error) {
+    next(error);
+  }
+}
+
+// -------------------------------------------------------
 // GET /:id/entregas/:entregaId/evidencia/:archivoId
 // Sirve el archivo de evidencia PDF de una entrega.
 // -------------------------------------------------------
@@ -341,4 +463,14 @@ async function obtenerEvidenciaEntrega(req, res, next) {
   }
 }
 
-module.exports = { listar, crear, actualizar, subirDocumento, proponerRecibida, validarEntrega, obtenerEvidenciaEntrega };
+module.exports = {
+  listar,
+  crear,
+  actualizar,
+  subirDocumento,
+  proponerRecibida,
+  validarEntrega,
+  subirEvidencia,
+  validarEvidencia,
+  obtenerEvidenciaEntrega,
+};

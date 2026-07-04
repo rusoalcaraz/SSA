@@ -92,6 +92,38 @@ function contarEntregasRecibidas(entregas: Entrega[]) {
   return entregas.filter((entrega) => ['recibida', 'recibida_propuesta'].includes(entrega.estado)).length
 }
 
+function etapasCompletadas(etapas: Procedimiento['cronograma'] | Procedimiento['hojaDeTrabajoEtapas']) {
+  return etapas.length > 0 && etapas.every((etapa) => etapa.noAplica || etapa.estado === 'completado')
+}
+
+function entregasCompletadas(entregas: Procedimiento['entregas']) {
+  return entregas.length > 0 && entregas.every((entrega) => entrega.estado === 'recibida')
+}
+
+function obtenerEtapaVisual(proc: Procedimiento) {
+  if (proc.etapaActual === 'cancelado' || proc.etapaActual === 'concluido') return proc.etapaActual
+
+  const cronogramaCompleto = etapasCompletadas(proc.cronograma ?? [])
+  const hojaCompleta = etapasCompletadas(proc.hojaDeTrabajoEtapas ?? [])
+  const entregasListas = entregasCompletadas(proc.entregas ?? [])
+
+  let etapaVisual = proc.etapaEfectiva ?? proc.etapaActual
+
+  if (etapaVisual === 'cronograma' && cronogramaCompleto) {
+    etapaVisual = 'hoja_de_trabajo'
+  }
+
+  if (etapaVisual === 'hoja_de_trabajo' && hojaCompleta) {
+    etapaVisual = 'entregas'
+  }
+
+  if (etapaVisual === 'entregas' && entregasListas) {
+    etapaVisual = 'concluido'
+  }
+
+  return etapaVisual
+}
+
 function obtenerResumen(proc: Procedimiento) {
   const etapasAplicables = [...(proc.cronograma ?? []), ...(proc.hojaDeTrabajoEtapas ?? [])]
     .filter((etapa) => !etapa.noAplica)
@@ -192,6 +224,7 @@ function RielEtapas({ etapaActual }: { etapaActual: EtapaActual }) {
 function TarjetaProcedimiento({ procedimiento }: { procedimiento: Procedimiento }) {
   const navigate = useNavigate()
   const resumen = useMemo(() => obtenerResumen(procedimiento), [procedimiento])
+  const etapaVisual = useMemo(() => obtenerEtapaVisual(procedimiento), [procedimiento])
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -207,8 +240,8 @@ function TarjetaProcedimiento({ procedimiento }: { procedimiento: Procedimiento 
               <span className="font-mono text-[11px] text-slate-500">
                 {procedimiento.numeroProcedimiento ?? 'Sin numero'}
               </span>
-              <Badge etapa={procedimiento.etapaActual}>
-                {ETIQUETA_ETAPA[procedimiento.etapaActual]}
+              <Badge etapa={etapaVisual}>
+                {ETIQUETA_ETAPA[etapaVisual]}
               </Badge>
             </div>
             <h2 className="text-lg font-bold text-slate-900 leading-tight">{procedimiento.titulo}</h2>
@@ -270,7 +303,7 @@ function TarjetaProcedimiento({ procedimiento }: { procedimiento: Procedimiento 
               {resumen.proximas > 0 ? `${resumen.proximas} hito(s) proximo(s) a vencer` : 'Sin alertas proximas'}
             </span>
           </div>
-          <RielEtapas etapaActual={procedimiento.etapaActual} />
+          <RielEtapas etapaActual={etapaVisual} />
         </section>
 
         <section>

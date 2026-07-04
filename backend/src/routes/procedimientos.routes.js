@@ -123,14 +123,32 @@ router.post(
 router.patch(
   '/:id/etapas/:etapaId/completar',
   checkRole(['administrador', 'asesor_tecnico']),
-  uploadEvidencia.single('archivo'),
   etapasCtrl.completar
+);
+
+router.get(
+  '/:id/etapas/:etapaId/reporte',
+  checkRole(['administrador', 'adquisiciones', 'subdirector', 'jefe_seccion', 'asesor_tecnico']),
+  etapasCtrl.descargarReporteActividad
 );
 
 router.get(
   '/:id/etapas/:etapaId/evidencia/:archivoId',
   checkRole(['administrador', 'adquisiciones', 'subdirector', 'jefe_seccion', 'asesor_tecnico']),
   etapasCtrl.obtenerEvidencia
+);
+
+router.post(
+  '/:id/etapas/:etapaId/evidencia',
+  checkRole(['administrador', 'asesor_tecnico']),
+  uploadEvidencia.single('archivo'),
+  etapasCtrl.subirEvidencia
+);
+
+router.patch(
+  '/:id/etapas/:etapaId/evidencia/:archivoId/validar',
+  checkRole(['administrador', 'adquisiciones']),
+  etapasCtrl.validarEvidencia
 );
 
 router.patch(
@@ -214,6 +232,19 @@ router.get(
   '/:id/entregas/:entregaId/evidencia/:archivoId',
   checkRole(['administrador', 'adquisiciones', 'subdirector', 'jefe_seccion', 'asesor_tecnico']),
   entregasCtrl.obtenerEvidenciaEntrega
+);
+
+router.post(
+  '/:id/entregas/:entregaId/evidencia',
+  checkRole(['administrador', 'asesor_tecnico']),
+  uploadEvidenciaEntrega.single('archivo'),
+  entregasCtrl.subirEvidencia
+);
+
+router.patch(
+  '/:id/entregas/:entregaId/evidencia/:archivoId/validar',
+  checkRole(['administrador', 'adquisiciones']),
+  entregasCtrl.validarEvidencia
 );
 
 router.patch(

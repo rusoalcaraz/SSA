@@ -39,3 +39,13 @@ export function formatearFecha(fecha: string): string {
     year: 'numeric',
   })
 }
+
+export function formatearFechaHora(fecha: string): string {
+  return new Date(fecha).toLocaleString('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}

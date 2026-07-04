@@ -233,11 +233,22 @@ async function obtener(req, res, next) {
     const procedimiento = await Procedimiento.findById(req.params.id)
       .populate(POPULATE_BASICO)
       .populate('cronograma.completadoPor', 'nombre apellidos')
+      .populate('cronograma.propuestoPor', 'nombre apellidos')
+      .populate('cronograma.validadoPorConclusion', 'nombre apellidos')
       .populate('cronograma.observaciones.creadoPor', 'nombre apellidos')
+      .populate('cronograma.evidencias.cargadoPor', 'nombre apellidos')
+      .populate('cronograma.evidencias.validadoPor', 'nombre apellidos')
       .populate('hojaDeTrabajoEtapas.completadoPor', 'nombre apellidos')
+      .populate('hojaDeTrabajoEtapas.propuestoPor', 'nombre apellidos')
+      .populate('hojaDeTrabajoEtapas.validadoPorConclusion', 'nombre apellidos')
       .populate('hojaDeTrabajoEtapas.observaciones.creadoPor', 'nombre apellidos')
+      .populate('hojaDeTrabajoEtapas.evidencias.cargadoPor', 'nombre apellidos')
+      .populate('hojaDeTrabajoEtapas.evidencias.validadoPor', 'nombre apellidos')
       .populate('entregas.registradoPor', 'nombre apellidos')
+      .populate('entregas.propuestoPor', 'nombre apellidos')
       .populate('entregas.documentos.cargadoPor', 'nombre apellidos')
+      .populate('entregas.evidencias.cargadoPor', 'nombre apellidos')
+      .populate('entregas.evidencias.validadoPor', 'nombre apellidos')
       .populate('evidenciaJustificacion.cargadoPor', 'nombre apellidos');
 
     if (!procedimiento) {

@@ -35,6 +35,44 @@ const archivoAdjuntoSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const historialConclusionSchema = new mongoose.Schema(
+  {
+    accion: {
+      type: String,
+      enum: ['propuesta', 'aceptada', 'rechazada'],
+      required: true,
+    },
+    realizadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario', required: true },
+    timestamp: { type: Date, default: Date.now },
+    motivo: String,
+  },
+  { _id: true }
+);
+
+const evidenciaArchivoSchema = new mongoose.Schema(
+  {
+    nombre: { type: String, required: true },
+    ruta: { type: String, required: true },
+    mimeType: {
+      type: String,
+      enum: ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'],
+      default: 'application/pdf',
+    },
+    cargadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
+    cargadaEn: { type: Date, default: Date.now },
+    validacionEstado: {
+      type: String,
+      enum: ['pendiente', 'validada', 'rechazada'],
+      default: 'pendiente',
+    },
+    validadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
+    validadaEn: Date,
+    comentarioValidacion: String,
+    reemplazaEvidenciaId: mongoose.Schema.Types.ObjectId,
+  },
+  { _id: true }
+);
+
 // -------------------------------------------------------
 // Sub-schema: observacion dentro de una etapa
 // -------------------------------------------------------
@@ -136,15 +174,16 @@ const etapaProcedimientoSchema = new mongoose.Schema(
     propuestoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     propuestoEn: Date,
     estadoAnteriorPropuesta: String,
+    resultadoValidacionConclusion: {
+      type: String,
+      enum: ['aceptada', 'rechazada'],
+    },
+    validadoPorConclusion: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
+    validadaEnConclusion: Date,
+    motivoRechazoConclusion: String,
+    historialConclusiones: [historialConclusionSchema],
 
-    evidencias: [
-      {
-        nombre: String,
-        ruta: String,
-        cargadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
-        cargadaEn: { type: Date, default: Date.now },
-      },
-    ],
+    evidencias: [evidenciaArchivoSchema],
   },
   { _id: true }
 );
@@ -191,14 +230,7 @@ const entregaSchema = new mongoose.Schema(
     propuestoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     propuestoEn: Date,
 
-    evidencias: [
-      {
-        nombre: String,
-        ruta: String,
-        cargadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
-        cargadaEn: { type: Date, default: Date.now },
-      },
-    ],
+    evidencias: [evidenciaArchivoSchema],
   },
   { _id: true }
 );

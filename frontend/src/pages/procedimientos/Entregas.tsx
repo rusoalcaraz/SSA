@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import type { Procedimiento, Entrega } from '../../types'
+import type { Procedimiento, Entrega, EvidenciaArchivo } from '../../types'
 import { useAuth } from '../../hooks/useAuth'
 import { Modal } from '../../components/ui/Modal'
 import { Spinner } from '../../components/ui/Spinner'
 import { entregasService, type CrearEntregaPayload, type ActualizarEntregaPayload } from '../../services/entregas.service'
 import { mensajeDeError } from '../../services/api'
-import { formatearFecha } from '../../utils/formato'
+import { formatearFecha, formatearFechaHora } from '../../utils/formato'
 
 interface ContextoDetalle {
   procedimiento: Procedimiento
@@ -39,6 +39,28 @@ const DOC_TIPO_ETIQUETA: Record<string, string> = {
   constancia_recepcion: 'Constancia de recepcion',
   hoja_aceptacion: 'Hoja de aceptacion',
   otro: 'Otro',
+}
+
+const ACEPTA_EVIDENCIA = 'application/pdf,image/png,image/jpeg,image/webp'
+
+const ETIQUETA_EVIDENCIA: Record<'pendiente' | 'validada' | 'rechazada', string> = {
+  pendiente: 'Pend. validación',
+  validada: 'Validada',
+  rechazada: 'Rechazada',
+}
+
+const CLASE_EVIDENCIA: Record<'pendiente' | 'validada' | 'rechazada', string> = {
+  pendiente: 'bg-amber-100 text-amber-800',
+  validada: 'bg-emerald-100 text-emerald-800',
+  rechazada: 'bg-rose-100 text-rose-800',
+}
+
+function nombreCompletoUsuario(nombre?: string, apellidos?: string) {
+  return [nombre, apellidos].filter(Boolean).join(' ')
+}
+
+function evidenciaSigueVigente(evidencia: EvidenciaArchivo, evidencias: EvidenciaArchivo[]) {
+  return !evidencias.some((candidata) => candidata.reemplazaEvidenciaId === evidencia._id)
 }
 
 // -------------------------------------------------------
@@ -541,6 +563,173 @@ function ModalValidarEntrega({
   )
 }
 
+function ModalSubirEvidenciaEntrega({
+  procedimientoId,
+  entrega,
+  evidenciaOriginal,
+  onGuardado,
+  onClose,
+}: {
+  procedimientoId: string
+  entrega: Entrega
+  evidenciaOriginal?: EvidenciaArchivo
+  onGuardado: () => void
+  onClose: () => void
+}) {
+  const [archivo, setArchivo] = useState<File | null>(null)
+  const [subiendo, setSubiendo] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!archivo) {
+      setErrorMsg('Selecciona una imagen o un archivo PDF.')
+      return
+    }
+    setSubiendo(true)
+    setErrorMsg(null)
+    try {
+      await entregasService.subirEvidencia(procedimientoId, entrega._id, archivo, evidenciaOriginal?._id)
+      onGuardado()
+    } catch (err) {
+      setErrorMsg(mensajeDeError(err))
+    } finally {
+      setSubiendo(false)
+    }
+  }
+
+  return (
+    <Modal titulo={evidenciaOriginal ? 'Reemplazar evidencia' : 'Subir evidencia'} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-sm text-gray-600">
+          {evidenciaOriginal
+            ? <>Carga la versión corregida para reemplazar el archivo rechazado de la entrega <strong>"{entrega.descripcion}"</strong>.</>
+            : <>Carga una imagen o PDF como respaldo de la entrega <strong>"{entrega.descripcion}"</strong>.</>}
+        </p>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Archivo <span className="text-gray-400 font-normal">(PDF o imagen)</span>
+          </label>
+          <input
+            type="file"
+            accept={ACEPTA_EVIDENCIA}
+            className="w-full text-sm text-gray-700 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-900 hover:file:bg-indigo-100"
+            onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+          />
+        </div>
+        {archivo && <p className="text-xs text-gray-500 -mt-2">{archivo.name}</p>}
+        {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={subiendo}
+            className="px-4 py-2 text-sm rounded-md bg-indigo-700 text-white hover:bg-indigo-600 disabled:opacity-50 transition-colors"
+          >
+            {subiendo ? 'Subiendo...' : 'Subir evidencia'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function ModalValidarEvidenciaEntrega({
+  procedimientoId,
+  entregaId,
+  evidencia,
+  onGuardado,
+  onClose,
+}: {
+  procedimientoId: string
+  entregaId: string
+  evidencia: EvidenciaArchivo
+  onGuardado: () => void
+  onClose: () => void
+}) {
+  const [comentario, setComentario] = useState('')
+  const [guardando, setGuardando] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  async function responder(respuesta: 'aceptar' | 'rechazar') {
+    if (respuesta === 'rechazar' && !comentario.trim()) {
+      setErrorMsg('Debes capturar el motivo de rechazo')
+      return
+    }
+    setGuardando(true)
+    setErrorMsg(null)
+    try {
+      await entregasService.validarEvidencia(
+        procedimientoId,
+        entregaId,
+        evidencia._id,
+        respuesta,
+        comentario.trim() || undefined
+      )
+      onGuardado()
+    } catch (err) {
+      setErrorMsg(mensajeDeError(err))
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <Modal titulo="Validar evidencia" onClose={onClose}>
+      <p className="text-sm text-gray-600 mb-3">
+        Revisa el archivo cargado y confirma si la evidencia es correcta.
+      </p>
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            const url = await entregasService.obtenerEvidencia(procedimientoId, entregaId, evidencia._id)
+            window.open(url, '_blank')
+          } catch { /* ignore */ }
+        }}
+        className="mb-4 inline-flex items-center gap-1 text-sm text-blue-700 underline hover:text-blue-900"
+      >
+        Abrir archivo: {evidencia.nombre}
+      </button>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Comentario <span className="text-gray-400 font-normal">(obligatorio si rechazas)</span></label>
+        <textarea
+          rows={3}
+          value={comentario}
+          onChange={(e) => setComentario(e.target.value)}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-900"
+          placeholder="Observaciones de la validación..."
+        />
+      </div>
+      {errorMsg && <p className="text-sm text-red-600 mt-3">{errorMsg}</p>}
+      <div className="mt-4 flex gap-3">
+        <button
+          type="button"
+          onClick={() => responder('aceptar')}
+          disabled={guardando}
+          className="flex-1 py-2 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          {guardando ? 'Guardando...' : 'Aceptar'}
+        </button>
+        <button
+          type="button"
+          onClick={() => responder('rechazar')}
+          disabled={guardando}
+          className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-md transition-colors"
+        >
+          {guardando ? 'Guardando...' : 'Rechazar'}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 // -------------------------------------------------------
 // Fila de entrega expandible
 // -------------------------------------------------------
@@ -551,6 +740,8 @@ function FilaEntrega({
   puedeSubirDoc,
   puedeProponer,
   puedeValidar,
+  puedeSubirEvidencia,
+  puedeValidarEvidencia,
   onActualizar,
 }: {
   entrega: Entrega
@@ -559,6 +750,8 @@ function FilaEntrega({
   puedeSubirDoc: boolean
   puedeProponer: boolean
   puedeValidar: boolean
+  puedeSubirEvidencia: boolean
+  puedeValidarEvidencia: boolean
   onActualizar: () => void
 }) {
   const [expandida, setExpandida] = useState(false)
@@ -566,6 +759,10 @@ function FilaEntrega({
   const [modalDocumento, setModalDocumento] = useState<string | null>(null)
   const [modalValidar, setModalValidar] = useState(false)
   const [modalProponer, setModalProponer] = useState(false)
+  const [modalSubirEvidencia, setModalSubirEvidencia] = useState(false)
+  const [evidenciaPorValidar, setEvidenciaPorValidar] = useState<EvidenciaArchivo | null>(null)
+  const [evidenciaPorMotivo, setEvidenciaPorMotivo] = useState<EvidenciaArchivo | null>(null)
+  const [evidenciaPorReemplazar, setEvidenciaPorReemplazar] = useState<EvidenciaArchivo | null>(null)
 
   return (
     <>
@@ -633,29 +830,91 @@ function FilaEntrega({
             </div>
 
             {/* Evidencias */}
-            {entrega.evidencias && entrega.evidencias.length > 0 && (
+            {entrega.evidencias && entrega.evidencias.filter((ev) => evidenciaSigueVigente(ev, entrega.evidencias ?? [])).length > 0 && (
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                  Evidencias ({entrega.evidencias.length})
+                  Evidencias ({entrega.evidencias.filter((ev) => evidenciaSigueVigente(ev, entrega.evidencias ?? [])).length})
                 </p>
                 <div className="flex gap-2 flex-wrap">
-                  {entrega.evidencias.map((ev) => (
-                    <button
-                      key={ev._id}
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          const url = await entregasService.obtenerEvidencia(procedimientoId, entrega._id, ev._id)
-                          window.open(url, '_blank')
-                        } catch { /* ignore */ }
-                      }}
-                      className="inline-flex items-center gap-1 text-xs text-blue-700 underline hover:text-blue-900"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                      </svg>
-                      {ev.nombre}
-                    </button>
+                  {entrega.evidencias
+                    .filter((ev) => evidenciaSigueVigente(ev, entrega.evidencias ?? []))
+                    .map((ev) => (
+                    <div key={ev._id} className="flex w-full sm:w-88 max-w-full flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const url = await entregasService.obtenerEvidencia(procedimientoId, entrega._id, ev._id)
+                              window.open(url, '_blank')
+                            } catch { /* ignore */ }
+                          }}
+                          className="inline-flex min-w-0 items-center gap-1 text-left text-xs text-blue-700 underline hover:text-blue-900"
+                          title={ev.nombre}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                          </svg>
+                          <span className="min-w-0 wrap-break-word sm:truncate">{ev.nombre}</span>
+                        </button>
+                        {(ev.validacionEstado ?? 'pendiente') === 'rechazada' ? (
+                          <button
+                            type="button"
+                            onClick={() => setEvidenciaPorMotivo(ev)}
+                            className={`inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${CLASE_EVIDENCIA.rechazada}`}
+                          >
+                            Rechazada
+                          </button>
+                        ) : (
+                          <span
+                            className={`inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${CLASE_EVIDENCIA[(ev.validacionEstado ?? 'pendiente') as 'pendiente' | 'validada' | 'rechazada']}`}
+                          >
+                            {ETIQUETA_EVIDENCIA[(ev.validacionEstado ?? 'pendiente') as 'pendiente' | 'validada' | 'rechazada']}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500">
+                        {ev.cargadoPor && (
+                          <span>
+                            <span className="font-medium">Cargó:</span>{' '}
+                            {nombreCompletoUsuario(ev.cargadoPor.nombre, ev.cargadoPor.apellidos)}
+                            {ev.cargadaEn ? ` · ${formatearFechaHora(ev.cargadaEn)}` : ''}
+                          </span>
+                        )}
+                        {ev.validadoPor && (
+                          <span>
+                            <span className="font-medium">
+                              {(ev.validacionEstado ?? 'pendiente') === 'rechazada' ? 'Rechazó:' : 'Validó:'}
+                            </span>{' '}
+                            {nombreCompletoUsuario(ev.validadoPor.nombre, ev.validadoPor.apellidos)}
+                            {ev.validadaEn ? ` · ${formatearFechaHora(ev.validadaEn)}` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {puedeValidarEvidencia && (ev.validacionEstado ?? 'pendiente') === 'pendiente' && (
+                          <button
+                            type="button"
+                            onClick={() => setEvidenciaPorValidar(ev)}
+                            className="text-xs font-medium text-emerald-700 hover:text-emerald-900"
+                          >
+                            Validar evidencia
+                          </button>
+                        )}
+                        {puedeSubirEvidencia && (ev.validacionEstado ?? 'pendiente') === 'rechazada' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEvidenciaPorReemplazar(ev)
+                              setModalSubirEvidencia(true)
+                            }}
+                            className="text-xs font-medium text-indigo-700 hover:text-indigo-900"
+                          >
+                            Reemplazar archivo
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -697,6 +956,18 @@ function FilaEntrega({
                   className="px-3 py-1.5 text-xs rounded border border-blue-200 text-blue-800 hover:bg-blue-50 transition-colors"
                 >
                   Subir documento
+                </button>
+              )}
+              {puedeSubirEvidencia && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEvidenciaPorReemplazar(null)
+                    setModalSubirEvidencia(true)
+                  }}
+                  className="px-3 py-1.5 text-xs rounded border border-indigo-200 text-indigo-800 hover:bg-indigo-50 transition-colors"
+                >
+                  Subir evidencia
                 </button>
               )}
             </div>
@@ -748,6 +1019,56 @@ function FilaEntrega({
           onClose={() => setModalValidar(false)}
         />
       )}
+      {modalSubirEvidencia && (
+        <ModalSubirEvidenciaEntrega
+          procedimientoId={procedimientoId}
+          entrega={entrega}
+          evidenciaOriginal={evidenciaPorReemplazar ?? undefined}
+          onGuardado={() => {
+            setModalSubirEvidencia(false)
+            setEvidenciaPorReemplazar(null)
+            onActualizar()
+          }}
+          onClose={() => {
+            setModalSubirEvidencia(false)
+            setEvidenciaPorReemplazar(null)
+          }}
+        />
+      )}
+      {evidenciaPorValidar && (
+        <ModalValidarEvidenciaEntrega
+          procedimientoId={procedimientoId}
+          entregaId={entrega._id}
+          evidencia={evidenciaPorValidar}
+          onGuardado={() => {
+            setEvidenciaPorValidar(null)
+            onActualizar()
+          }}
+          onClose={() => setEvidenciaPorValidar(null)}
+        />
+      )}
+      {evidenciaPorMotivo && (
+        <Modal titulo="Motivo de rechazo" onClose={() => setEvidenciaPorMotivo(null)}>
+          <p className="text-sm text-gray-600 mb-2">
+            Esta evidencia fue rechazada durante la validación.
+          </p>
+          {evidenciaPorMotivo.validadoPor && (
+            <p className="text-xs text-gray-500 mb-2">
+              Rechazó: {nombreCompletoUsuario(evidenciaPorMotivo.validadoPor.nombre, evidenciaPorMotivo.validadoPor.apellidos)}
+              {evidenciaPorMotivo.validadaEn ? ` · ${formatearFechaHora(evidenciaPorMotivo.validadaEn)}` : ''}
+            </p>
+          )}
+          <div className="rounded-md bg-rose-50 border border-rose-200 px-3 py-3 text-sm text-rose-800">
+            {evidenciaPorMotivo.comentarioValidacion ?? 'Sin motivo registrado.'}
+          </div>
+          <button
+            onClick={() => setEvidenciaPorMotivo(null)}
+            className="mt-4 w-full py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            Cerrar
+          </button>
+        </Modal>
+      )}
     </>
   )
 }
@@ -763,12 +1084,14 @@ export function Entregas() {
   const puedeEditar = tieneRol('administrador', 'adquisiciones', 'subdirector')
   const puedeSubirDoc = puedeEditar
   const puedeValidar = tieneRol('administrador', 'adquisiciones', 'subdirector')
+  const puedeValidarEvidencia = tieneRol('administrador', 'adquisiciones')
 
   const esAT =
     tieneRol('asesor_tecnico') &&
     (procedimiento.asesorTitular?._id === usuario?._id ||
       procedimiento.asesorSuplente?._id === usuario?._id)
   const puedeProponer = esAT || tieneRol('administrador')
+  const puedeSubirEvidencia = esAT
 
   const entregas = procedimiento.entregas
 
@@ -806,6 +1129,8 @@ export function Entregas() {
               puedeSubirDoc={puedeSubirDoc}
               puedeProponer={puedeProponer}
               puedeValidar={puedeValidar}
+              puedeSubirEvidencia={puedeSubirEvidencia}
+              puedeValidarEvidencia={puedeValidarEvidencia}
               onActualizar={recargar}
             />
           ))}

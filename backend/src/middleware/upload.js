@@ -42,6 +42,18 @@ function filtrarPDF(req, file, cb) {
   }
 }
 
+function filtrarEvidencia(req, file, cb) {
+  const tiposPermitidos = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
+  if (tiposPermitidos.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    const error = new Error('Solo se permiten archivos PDF o imagenes PNG, JPG y WEBP');
+    error.statusCode = 400;
+    error.code = 'TIPO_ARCHIVO_INVALIDO';
+    cb(error, false);
+  }
+}
+
 /**
  * Middleware de subida para archivos de justificacion.
  * Destino: uploads/justificaciones/{procedimientoId}/
@@ -84,7 +96,7 @@ const uploadEvidencia = multer({
   storage: crearStorage(
     (req) => `evidencias/${req.params.id}/${req.params.etapaId}/`
   ),
-  fileFilter: filtrarPDF,
+  fileFilter: filtrarEvidencia,
   limits: { fileSize: MAX_BYTES },
 });
 
@@ -96,7 +108,7 @@ const uploadEvidenciaEntrega = multer({
   storage: crearStorage(
     (req) => `evidencias-entregas/${req.params.id}/${req.params.entregaId}/`
   ),
-  fileFilter: filtrarPDF,
+  fileFilter: filtrarEvidencia,
   limits: { fileSize: MAX_BYTES },
 });
 

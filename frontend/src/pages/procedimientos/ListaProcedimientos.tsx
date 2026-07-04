@@ -98,6 +98,38 @@ function contarEntregasRecibidas(entregas: Entrega[]) {
   return entregas.filter((e) => ['recibida', 'recibida_propuesta'].includes(e.estado)).length
 }
 
+function etapasCompletadas(etapas: Procedimiento['cronograma'] | Procedimiento['hojaDeTrabajoEtapas']) {
+  return etapas.length > 0 && etapas.every((etapa) => etapa.noAplica || etapa.estado === 'completado')
+}
+
+function entregasCompletadas(entregas: Procedimiento['entregas']) {
+  return entregas.length > 0 && entregas.every((entrega) => entrega.estado === 'recibida')
+}
+
+function obtenerEtapaVisual(proc: Procedimiento) {
+  if (proc.etapaActual === 'cancelado' || proc.etapaActual === 'concluido') return proc.etapaActual
+
+  const cronogramaCompleto = etapasCompletadas(proc.cronograma ?? [])
+  const hojaCompleta = etapasCompletadas(proc.hojaDeTrabajoEtapas ?? [])
+  const entregasListas = entregasCompletadas(proc.entregas ?? [])
+
+  let etapaVisual = proc.etapaEfectiva ?? proc.etapaActual
+
+  if (etapaVisual === 'cronograma' && cronogramaCompleto) {
+    etapaVisual = 'hoja_de_trabajo'
+  }
+
+  if (etapaVisual === 'hoja_de_trabajo' && hojaCompleta) {
+    etapaVisual = 'entregas'
+  }
+
+  if (etapaVisual === 'entregas' && entregasListas) {
+    etapaVisual = 'concluido'
+  }
+
+  return etapaVisual
+}
+
 function obtenerResumen(proc: Procedimiento) {
   const etapasAplicables = [...(proc.cronograma ?? []), ...(proc.hojaDeTrabajoEtapas ?? [])]
     .filter((etapa) => !etapa.noAplica)
@@ -173,6 +205,7 @@ function RielEtapas({ etapaActual }: { etapaActual: EtapaActual }) {
 
 function PanelLineaTiempo({ proc }: { proc: Procedimiento }) {
   const resumen = useMemo(() => obtenerResumen(proc), [proc])
+  const etapaVisual = useMemo(() => obtenerEtapaVisual(proc), [proc])
 
   return (
     <div className="px-6 py-5 bg-slate-50 border-t border-slate-200 space-y-5">
@@ -217,7 +250,7 @@ function PanelLineaTiempo({ proc }: { proc: Procedimiento }) {
               : 'Sin alertas proximas'}
           </span>
         </div>
-        <RielEtapas etapaActual={proc.etapaActual} />
+        <RielEtapas etapaActual={etapaVisual} />
       </section>
     </div>
   )
@@ -479,7 +512,10 @@ export function ListaProcedimientos() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {procedimientos.map((proc) => (
+              {procedimientos.map((proc) => {
+                const etapaVisual = obtenerEtapaVisual(proc)
+
+                return (
                 <Fragment key={proc._id}>
                   <tr
                     onClick={() => navigate(`/procedimientos/${proc._id}`)}
@@ -534,9 +570,9 @@ export function ListaProcedimientos() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <Badge etapa={proc.etapaEfectiva ?? proc.etapaActual}>
-                          {ETIQUETA_ETAPA[proc.etapaEfectiva ?? proc.etapaActual]}
-                          {proc.etapaEfectiva && proc.etapaEfectiva !== proc.etapaActual && (
+                        <Badge etapa={etapaVisual}>
+                          {ETIQUETA_ETAPA[etapaVisual]}
+                          {etapaVisual !== proc.etapaActual && (
                             <span
                               className="ml-1 opacity-60 text-[9px]"
                               title="El sistema registra la etapa anterior como activa, pero todas sus actividades están concluidas"
@@ -618,7 +654,8 @@ export function ListaProcedimientos() {
                     </tr>
                   )}
                 </Fragment>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}

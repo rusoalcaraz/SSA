@@ -11,6 +11,7 @@ const {
 } = require('../../services/procedimiento.service');
 const { notificarCambioFecha } = require('../../services/notificaciones.service');
 const path = require('path');
+const PDFDocument = require('pdfkit');
 
 // -------------------------------------------------------
 // Helpers
@@ -68,6 +69,125 @@ function verificarSecuencia(lista, etapa) {
   }
 }
 
+function crearRegistroEvidencia(file, usuarioId) {
+  return {
+    nombre: file.originalname,
+    ruta: file.path,
+    mimeType: file.mimetype,
+    cargadoPor: usuarioId,
+    validacionEstado: 'pendiente',
+  };
+}
+
+function nombreUsuario(usuario) {
+  if (!usuario) return 'Sin dato';
+  return [usuario.nombre, usuario.apellidos].filter(Boolean).join(' ');
+}
+
+function fechaHora(valor) {
+  if (!valor) return 'Sin fecha';
+  return new Date(valor).toLocaleString('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function colorActividad(accion) {
+  if (accion.startsWith('Validación')) return '#15803d';
+  if (accion.startsWith('Rechazo')) return '#b91c1c';
+  if (
+    accion.startsWith('Carga') ||
+    accion.startsWith('Reemplazo') ||
+    accion.startsWith('Propuesta')
+  ) {
+    return '#1d4ed8';
+  }
+  return '#334155';
+}
+
+function estiloActividad(accion) {
+  if (accion.startsWith('Validación')) {
+    return { color: '#15803d', fill: '#ecfdf5', stroke: '#86efac', badge: 'Validación' };
+  }
+  if (accion.startsWith('Rechazo')) {
+    return { color: '#b91c1c', fill: '#fff1f2', stroke: '#fda4af', badge: 'Rechazo' };
+  }
+  if (
+    accion.startsWith('Carga') ||
+    accion.startsWith('Reemplazo') ||
+    accion.startsWith('Propuesta')
+  ) {
+    return { color: '#1d4ed8', fill: '#eff6ff', stroke: '#93c5fd', badge: 'Seguimiento' };
+  }
+  return { color: '#334155', fill: '#f8fafc', stroke: '#cbd5e1', badge: 'Registro' };
+}
+
+function asegurarEspacio(doc, altoNecesario) {
+  const limite = doc.page.height - doc.page.margins.bottom;
+  if (doc.y + altoNecesario > limite) {
+    doc.addPage();
+  }
+}
+
+function dibujarTarjeta(doc, x, y, width, height, { fill, stroke, radius = 14 }) {
+  doc
+    .save()
+    .lineWidth(1)
+    .roundedRect(x, y, width, height, radius)
+    .fillAndStroke(fill, stroke)
+    .restore();
+}
+
+function dibujarKpi(doc, x, y, width, height, { label, value, accent, fill }) {
+  dibujarTarjeta(doc, x, y, width, height, { fill, stroke: fill });
+  doc
+    .save()
+    .roundedRect(x, y, 6, height, 6)
+    .fill(accent)
+    .restore();
+
+  doc
+    .fillColor('#64748b')
+    .font('Helvetica-Bold')
+    .fontSize(8)
+    .text(label.toUpperCase(), x + 16, y + 12, { width: width - 28 });
+
+  doc
+    .fillColor('#0f172a')
+    .font('Helvetica-Bold')
+    .fontSize(20)
+    .text(String(value), x + 16, y + 28, { width: width - 28 });
+}
+
+function dibujarDato(doc, x, y, width, height, { label, value, fill = '#ffffff', stroke = '#e2e8f0' }) {
+  dibujarTarjeta(doc, x, y, width, height, { fill, stroke, radius: 12 });
+
+  doc
+    .fillColor('#94a3b8')
+    .font('Helvetica-Bold')
+    .fontSize(8)
+    .text(label.toUpperCase(), x + 14, y + 12, { width: width - 28 });
+
+  doc
+    .fillColor('#0f172a')
+    .font('Helvetica-Bold')
+    .fontSize(13)
+    .text(value || '—', x + 14, y + 28, { width: width - 28, height: height - 34 });
+}
+
+function tieneEvidenciaBloqueante(etapa) {
+  if (!Array.isArray(etapa.evidencias) || etapa.evidencias.length === 0) return false;
+  return etapa.evidencias.some((evidencia) => {
+    const fueReemplazada = etapa.evidencias.some(
+      (candidata) => String(candidata.reemplazaEvidenciaId || '') === String(evidencia._id)
+    );
+    return !fueReemplazada && evidencia.validacionEstado !== 'validada';
+  });
+}
+
 // -------------------------------------------------------
 // PATCH /:id/etapas/:etapaId/completar  — solo AT
 // Propone la conclusion; queda en "completado_propuesto" hasta que IA valide.
@@ -91,20 +211,28 @@ async function completar(req, res, next) {
       throw crearError(409, 'ETAPA_PENDIENTE_VALIDACION', 'Ya se propuso la conclusion de esta etapa; espere la validacion del integrante de adquisiciones');
     }
 
+    if (req.file) {
+      throw crearError(409, 'EVIDENCIA_EN_FLUJO_INCORRECTO', 'La evidencia debe cargarse y validarse antes de proponer la conclusion de la etapa');
+    }
+
+    if (tieneEvidenciaBloqueante(etapa)) {
+      throw crearError(409, 'EVIDENCIA_PENDIENTE_VALIDACION', 'No puede proponer la conclusion mientras exista evidencia pendiente o rechazada');
+    }
+
     verificarSecuencia(lista, etapa);
 
     etapa.estadoAnteriorPropuesta = etapa.estado;
     etapa.estado = 'completado_propuesto';
     etapa.propuestoPor = req.usuario.id;
     etapa.propuestoEn = new Date();
-
-    if (req.file) {
-      etapa.evidencias.push({
-        nombre: req.file.originalname,
-        ruta: req.file.path,
-        cargadoPor: req.usuario.id,
-      });
-    }
+    etapa.resultadoValidacionConclusion = undefined;
+    etapa.validadoPorConclusion = undefined;
+    etapa.validadaEnConclusion = undefined;
+    etapa.motivoRechazoConclusion = undefined;
+    etapa.historialConclusiones.push({
+      accion: 'propuesta',
+      realizadoPor: req.usuario.id,
+    });
 
     await procedimiento.save();
 
@@ -129,9 +257,12 @@ async function completar(req, res, next) {
 // -------------------------------------------------------
 async function validarCompletado(req, res, next) {
   try {
-    const { respuesta } = req.body;
+    const { respuesta, motivoRechazo } = req.body;
     if (!['si', 'no'].includes(respuesta)) {
       throw crearError(400, 'RESPUESTA_INVALIDA', 'La respuesta debe ser "si" o "no"');
+    }
+    if (respuesta === 'no' && !String(motivoRechazo || '').trim()) {
+      throw crearError(400, 'MOTIVO_REQUERIDO', 'El motivo de rechazo es obligatorio');
     }
 
     const { procedimiento, etapa, seccion } = await resolverSeccion(
@@ -148,8 +279,25 @@ async function validarCompletado(req, res, next) {
       etapa.fechaReal = new Date();
       etapa.completadoPor = etapa.propuestoPor;
       etapa.completadoEn = new Date();
+      etapa.resultadoValidacionConclusion = 'aceptada';
+      etapa.validadoPorConclusion = req.usuario.id;
+      etapa.validadaEnConclusion = new Date();
+      etapa.motivoRechazoConclusion = undefined;
+      etapa.historialConclusiones.push({
+        accion: 'aceptada',
+        realizadoPor: req.usuario.id,
+      });
     } else {
       etapa.estado = etapa.estadoAnteriorPropuesta || 'activo';
+      etapa.resultadoValidacionConclusion = 'rechazada';
+      etapa.validadoPorConclusion = req.usuario.id;
+      etapa.validadaEnConclusion = new Date();
+      etapa.motivoRechazoConclusion = String(motivoRechazo).trim();
+      etapa.historialConclusiones.push({
+        accion: 'rechazada',
+        realizadoPor: req.usuario.id,
+        motivo: String(motivoRechazo).trim(),
+      });
     }
 
     etapa.propuestoPor = undefined;
@@ -175,7 +323,7 @@ async function validarCompletado(req, res, next) {
       accion: respuesta === 'si' ? 'VALIDAR_ETAPA_SI' : 'VALIDAR_ETAPA_NO',
       recurso: 'etapa',
       recursoId: etapa._id,
-      detalle: { procedimientoId: procedimiento._id, nombreEtapa: etapa.nombre },
+      detalle: { procedimientoId: procedimiento._id, nombreEtapa: etapa.nombre, motivoRechazo },
       req,
     });
 
@@ -440,6 +588,107 @@ async function subirArchivo(req, res, next) {
 }
 
 // -------------------------------------------------------
+// POST /:id/etapas/:etapaId/evidencia  — AT
+// -------------------------------------------------------
+async function subirEvidencia(req, res, next) {
+  try {
+    if (!req.file) {
+      throw crearError(400, 'ARCHIVO_REQUERIDO', 'Se requiere una imagen o un archivo PDF');
+    }
+
+    const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
+    const { reemplazaEvidenciaId } = req.body;
+
+    if (req.usuario.rol !== 'administrador' && !esMiProcedimiento(procedimiento, req.usuario.id)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo el asesor tecnico asignado puede cargar evidencias');
+    }
+
+    if (etapa.noAplica) {
+      throw crearError(409, 'ETAPA_NO_APLICA', 'No se puede cargar evidencia en una etapa marcada como no aplica');
+    }
+
+    let reemplazaArchivoId;
+    if (reemplazaEvidenciaId) {
+      const evidenciaAnterior = etapa.evidencias.id(reemplazaEvidenciaId);
+      if (!evidenciaAnterior) {
+        throw crearError(404, 'EVIDENCIA_NO_ENCONTRADA', 'La evidencia a reemplazar no existe');
+      }
+      if (evidenciaAnterior.validacionEstado !== 'rechazada') {
+        throw crearError(409, 'EVIDENCIA_NO_RECHAZADA', 'Solo se puede reemplazar una evidencia rechazada');
+      }
+      reemplazaArchivoId = evidenciaAnterior._id;
+    }
+
+    etapa.evidencias.push({
+      ...crearRegistroEvidencia(req.file, req.usuario.id),
+      ...(reemplazaArchivoId ? { reemplazaEvidenciaId: reemplazaArchivoId } : {}),
+    });
+    await procedimiento.save();
+
+    const evidencia = etapa.evidencias[etapa.evidencias.length - 1];
+
+    await auditLog.registrar({
+      usuarioId: req.usuario.id,
+      accion: 'CARGA_EVIDENCIA_ETAPA',
+      recurso: 'etapa',
+      recursoId: etapa._id,
+      detalle: { procedimientoId: procedimiento._id, archivo: req.file.filename },
+      req,
+    });
+
+    return ok(res, evidencia, 'Evidencia cargada correctamente');
+  } catch (error) {
+    next(error);
+  }
+}
+
+// -------------------------------------------------------
+// PATCH /:id/etapas/:etapaId/evidencia/:archivoId/validar
+// -------------------------------------------------------
+async function validarEvidencia(req, res, next) {
+  try {
+    const { respuesta, comentario } = req.body;
+    if (!['aceptar', 'rechazar'].includes(respuesta)) {
+      throw crearError(400, 'RESPUESTA_INVALIDA', 'La respuesta debe ser "aceptar" o "rechazar"');
+    }
+    if (respuesta === 'rechazar' && !String(comentario || '').trim()) {
+      throw crearError(400, 'MOTIVO_REQUERIDO', 'El motivo de rechazo es obligatorio');
+    }
+
+    const { procedimiento, etapa } = await resolverSeccion(req.params.id, req.params.etapaId);
+
+    if (!['administrador', 'adquisiciones'].includes(req.usuario.rol)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'Solo administrador o adquisiciones pueden validar evidencias');
+    }
+
+    const evidencia = etapa.evidencias.id(req.params.archivoId);
+    if (!evidencia) {
+      throw crearError(404, 'ARCHIVO_NO_ENCONTRADO', 'Archivo de evidencia no encontrado');
+    }
+
+    evidencia.validacionEstado = respuesta === 'aceptar' ? 'validada' : 'rechazada';
+    evidencia.validadoPor = req.usuario.id;
+    evidencia.validadaEn = new Date();
+    evidencia.comentarioValidacion = comentario || undefined;
+
+    await procedimiento.save();
+
+    await auditLog.registrar({
+      usuarioId: req.usuario.id,
+      accion: respuesta === 'aceptar' ? 'VALIDAR_EVIDENCIA_ETAPA' : 'RECHAZAR_EVIDENCIA_ETAPA',
+      recurso: 'etapa',
+      recursoId: etapa._id,
+      detalle: { procedimientoId: procedimiento._id, archivoId: evidencia._id, comentario },
+      req,
+    });
+
+    return ok(res, evidencia, respuesta === 'aceptar' ? 'Evidencia validada' : 'Evidencia rechazada');
+  } catch (error) {
+    next(error);
+  }
+}
+
+// -------------------------------------------------------
 // PATCH /:id/etapas/:etapaId/no-aplica  — AC / superadmin
 // Marca o desmarca una etapa como "No aplica".
 // -------------------------------------------------------
@@ -520,6 +769,394 @@ async function obtenerEvidencia(req, res, next) {
   }
 }
 
+// -------------------------------------------------------
+// GET /:id/etapas/:etapaId/reporte
+// -------------------------------------------------------
+async function descargarReporteActividad(req, res, next) {
+  try {
+    const procedimiento = await Procedimiento.findById(req.params.id)
+      .populate('cronograma.observaciones.creadoPor', 'nombre apellidos')
+      .populate('cronograma.evidencias.cargadoPor', 'nombre apellidos')
+      .populate('cronograma.evidencias.validadoPor', 'nombre apellidos')
+      .populate('cronograma.historialConclusiones.realizadoPor', 'nombre apellidos')
+      .populate('hojaDeTrabajoEtapas.observaciones.creadoPor', 'nombre apellidos')
+      .populate('hojaDeTrabajoEtapas.evidencias.cargadoPor', 'nombre apellidos')
+      .populate('hojaDeTrabajoEtapas.evidencias.validadoPor', 'nombre apellidos')
+      .populate('hojaDeTrabajoEtapas.historialConclusiones.realizadoPor', 'nombre apellidos')
+      .populate('asesorTitular', 'nombre apellidos')
+      .populate('asesorSuplente', 'nombre apellidos');
+
+    if (!procedimiento) {
+      throw crearError(404, 'PROCEDIMIENTO_NO_ENCONTRADO', 'Procedimiento no encontrado');
+    }
+
+    const { rol, id: usuarioId } = req.usuario;
+    if (rol === 'asesor_tecnico') {
+      if (!esMiProcedimiento(procedimiento, usuarioId)) {
+        throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
+      }
+    } else if (!puedeVerProcedimiento(procedimiento, req.usuario)) {
+      throw crearError(403, 'ACCESO_DENEGADO', 'No tiene acceso a este procedimiento');
+    }
+
+    const etapa =
+      procedimiento.cronograma.id(req.params.etapaId) ||
+      procedimiento.hojaDeTrabajoEtapas.id(req.params.etapaId);
+
+    if (!etapa) {
+      throw crearError(404, 'ETAPA_NO_ENCONTRADA', 'Etapa no encontrada en el procedimiento');
+    }
+
+    const actividades = [];
+
+    for (const evidencia of etapa.evidencias || []) {
+      actividades.push({
+        fecha: evidencia.cargadaEn,
+        actor: nombreUsuario(evidencia.cargadoPor),
+        accion: evidencia.reemplazaEvidenciaId ? 'Reemplazo de evidencia' : 'Carga de evidencia',
+        detalle: evidencia.nombre,
+      });
+
+      if (evidencia.validadoPor && evidencia.validadaEn) {
+        actividades.push({
+          fecha: evidencia.validadaEn,
+          actor: nombreUsuario(evidencia.validadoPor),
+          accion: evidencia.validacionEstado === 'rechazada' ? 'Rechazo de evidencia' : 'Validación de evidencia',
+          detalle: evidencia.comentarioValidacion || evidencia.nombre,
+        });
+      }
+    }
+
+    for (const registro of etapa.historialConclusiones || []) {
+      actividades.push({
+        fecha: registro.timestamp,
+        actor: nombreUsuario(registro.realizadoPor),
+        accion:
+          registro.accion === 'propuesta'
+            ? 'Propuesta de conclusión'
+            : registro.accion === 'aceptada'
+            ? 'Validación de conclusión'
+            : 'Rechazo de conclusión',
+        detalle: registro.motivo || '',
+      });
+    }
+
+    for (const observacion of etapa.observaciones || []) {
+      actividades.push({
+        fecha: observacion.timestamp,
+        actor: nombreUsuario(observacion.creadoPor),
+        accion: 'Observación registrada',
+        detalle: observacion.texto,
+      });
+    }
+
+    actividades.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+
+    const totalValidaciones = actividades.filter((a) => a.accion.startsWith('Validación')).length;
+    const totalRechazos = actividades.filter((a) => a.accion.startsWith('Rechazo')).length;
+    const totalSeguimiento = actividades.filter(
+      (a) =>
+        a.accion.startsWith('Carga') ||
+        a.accion.startsWith('Reemplazo') ||
+        a.accion.startsWith('Propuesta')
+    ).length;
+    const ultimaRevision = [...actividades].reverse().find(
+      (a) => a.accion.startsWith('Validación') || a.accion.startsWith('Rechazo')
+    );
+    const ultimaActividad = actividades[actividades.length - 1];
+
+    const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+    const slug = `${procedimiento.numeroProcedimiento || procedimiento._id}-${etapa.nombre}`
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="SSA-etapa-${slug || Date.now()}.pdf"`);
+    doc.pipe(res);
+
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const startX = doc.page.margins.left;
+    const cardGap = 12;
+
+    const headerY = doc.y;
+    dibujarTarjeta(doc, startX, headerY, pageWidth, 96, {
+      fill: '#0f172a',
+      stroke: '#0f172a',
+      radius: 18,
+    });
+
+    doc
+      .fillColor('#bfdbfe')
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .text('BITÁCORA DE REVISIÓN DE ETAPA', startX + 18, headerY + 14, { width: pageWidth - 36 });
+
+    doc
+      .fillColor('#ffffff')
+      .font('Helvetica-Bold')
+      .fontSize(18)
+      .text(procedimiento.numeroProcedimiento || 'Procedimiento sin número', startX + 18, headerY + 30, {
+        width: pageWidth - 220,
+      });
+
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor('#e2e8f0')
+      .text(procedimiento.titulo, startX + 18, headerY + 56, { width: pageWidth - 36, lineGap: 1 });
+
+    doc
+      .save()
+      .roundedRect(startX + pageWidth - 168, headerY + 18, 150, 24, 12)
+      .fill('#1e293b')
+      .restore();
+    doc
+      .fillColor('#f8fafc')
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .text(etapa.nombre, startX + pageWidth - 160, headerY + 25, { width: 134, align: 'center' });
+
+    doc.y = headerY + 112;
+
+    const kpiWidth = (pageWidth - cardGap * 3) / 4;
+    const kpiHeight = 66;
+    const kpiY = doc.y;
+    dibujarKpi(doc, startX, kpiY, kpiWidth, kpiHeight, {
+      label: 'Actividades',
+      value: actividades.length,
+      accent: '#334155',
+      fill: '#f8fafc',
+    });
+    dibujarKpi(doc, startX + kpiWidth + cardGap, kpiY, kpiWidth, kpiHeight, {
+      label: 'Validaciones',
+      value: totalValidaciones,
+      accent: '#15803d',
+      fill: '#ecfdf5',
+    });
+    dibujarKpi(doc, startX + (kpiWidth + cardGap) * 2, kpiY, kpiWidth, kpiHeight, {
+      label: 'Rechazos',
+      value: totalRechazos,
+      accent: '#b91c1c',
+      fill: '#fff1f2',
+    });
+    dibujarKpi(doc, startX + (kpiWidth + cardGap) * 3, kpiY, kpiWidth, kpiHeight, {
+      label: 'Cargas / propuestas',
+      value: totalSeguimiento,
+      accent: '#1d4ed8',
+      fill: '#eff6ff',
+    });
+
+    doc.y = kpiY + 82;
+
+    const dataWidth = (pageWidth - cardGap) / 2;
+    const dataHeight = 64;
+    const dataRow1Y = doc.y;
+    dibujarDato(doc, startX, dataRow1Y, dataWidth, dataHeight, {
+      label: 'Generado',
+      value: fechaHora(new Date()),
+      fill: '#ffffff',
+      stroke: '#e2e8f0',
+    });
+    dibujarDato(doc, startX + dataWidth + cardGap, dataRow1Y, dataWidth, dataHeight, {
+      label: 'Etapa',
+      value: etapa.nombre,
+      fill: '#ffffff',
+      stroke: '#e2e8f0',
+    });
+
+    doc.y = dataRow1Y + dataHeight + cardGap;
+
+    const dataRow2Y = doc.y;
+    dibujarDato(doc, startX, dataRow2Y, dataWidth, dataHeight, {
+      label: 'Asesor titular',
+      value: nombreUsuario(procedimiento.asesorTitular),
+      fill: '#ffffff',
+      stroke: '#e2e8f0',
+    });
+    dibujarDato(doc, startX + dataWidth + cardGap, dataRow2Y, dataWidth, dataHeight, {
+      label: 'Asesor suplente',
+      value: nombreUsuario(procedimiento.asesorSuplente),
+      fill: '#ffffff',
+      stroke: '#e2e8f0',
+    });
+
+    doc.y = dataRow2Y + dataHeight + 16;
+
+    const tarjetaRevision = ultimaRevision
+      ? estiloActividad(ultimaRevision.accion)
+      : { color: '#92400e', fill: '#fffbeb', stroke: '#fcd34d', badge: 'Pendiente' };
+
+    const reviewY = doc.y;
+    dibujarTarjeta(doc, startX, reviewY, pageWidth, 78, {
+      fill: tarjetaRevision.fill,
+      stroke: tarjetaRevision.stroke,
+      radius: 16,
+    });
+    doc
+      .fillColor('#64748b')
+      .font('Helvetica-Bold')
+      .fontSize(8)
+      .text('ÚLTIMA REVISIÓN REGISTRADA', startX + 16, reviewY + 12, { width: pageWidth - 32 });
+    doc
+      .fillColor(tarjetaRevision.color)
+      .font('Helvetica-Bold')
+      .fontSize(16)
+      .text(
+        ultimaRevision ? ultimaRevision.accion : 'Aún no existe una validación o rechazo registrado',
+        startX + 16,
+        reviewY + 28,
+        { width: pageWidth - 190 }
+      );
+    doc
+      .fillColor('#0f172a')
+      .font('Helvetica')
+      .fontSize(10)
+      .text(
+        ultimaRevision
+          ? `${ultimaRevision.actor} · ${fechaHora(ultimaRevision.fecha)}`
+          : 'La etapa sigue en preparación y todavía no ha sido revisada por adquisiciones.',
+        startX + 16,
+        reviewY + 50,
+        { width: pageWidth - 32 }
+      );
+    doc
+      .save()
+      .roundedRect(startX + pageWidth - 144, reviewY + 20, 124, 28, 14)
+      .fill(tarjetaRevision.color)
+      .restore();
+    doc
+      .fillColor('#ffffff')
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .text(ultimaRevision ? 'REVISADO' : 'PENDIENTE', startX + pageWidth - 136, reviewY + 29, {
+        width: 108,
+        align: 'center',
+      });
+
+    doc.y = reviewY + 94;
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .fillColor('#15803d')
+      .text('Verde: validaciones', { continued: true })
+      .fillColor('#111827')
+      .text('   |   ', { continued: true })
+      .fillColor('#b91c1c')
+      .text('Rojo: rechazos', { continued: true })
+      .fillColor('#111827')
+      .text('   |   ', { continued: true })
+      .fillColor('#1d4ed8')
+      .text('Azul: cargas y propuestas')
+      .fillColor('#334155')
+      .moveDown(0.9);
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .fillColor('#0f172a')
+      .text('Línea de actividades');
+    doc.moveDown(0.4);
+
+    if (actividades.length === 0) {
+      doc.fontSize(10).text('No hay actividades registradas para esta etapa.');
+    } else {
+      actividades.forEach((actividad, index) => {
+        const estilo = estiloActividad(actividad.accion);
+        const esUltimaActividad = ultimaActividad === actividad;
+        const detalleTexto = actividad.detalle || 'Sin detalle adicional';
+        doc.font('Helvetica').fontSize(9);
+        const detalleHeight = doc.heightOfString(detalleTexto, { width: pageWidth - 124 });
+        const cardHeight = Math.max(92, 74 + detalleHeight + (esUltimaActividad ? 16 : 0));
+
+        asegurarEspacio(doc, cardHeight + 10);
+
+        const activityY = doc.y;
+        dibujarTarjeta(doc, startX, activityY, pageWidth, cardHeight, {
+          fill: esUltimaActividad ? '#fff7ed' : estilo.fill,
+          stroke: esUltimaActividad ? '#fb923c' : estilo.stroke,
+          radius: 16,
+        });
+
+        doc
+          .save()
+          .roundedRect(startX, activityY, 8, cardHeight, 8)
+          .fill(esUltimaActividad ? '#f97316' : estilo.color)
+          .restore();
+
+        if (esUltimaActividad) {
+          doc
+            .save()
+            .roundedRect(startX + pageWidth - 132, activityY + 14, 112, 24, 12)
+            .fill('#f97316')
+            .restore();
+          doc
+            .fillColor('#ffffff')
+            .font('Helvetica-Bold')
+            .fontSize(8)
+            .text('ÚLTIMA ACTIVIDAD', startX + pageWidth - 124, activityY + 22, { width: 96, align: 'center' });
+        }
+
+        doc
+          .fillColor('#94a3b8')
+          .font('Helvetica-Bold')
+          .fontSize(8)
+          .text(`MOVIMIENTO ${index + 1}`, startX + 20, activityY + 12);
+
+        doc
+          .fillColor(estilo.color)
+          .font('Helvetica-Bold')
+          .fontSize(13)
+          .text(actividad.accion, startX + 20, activityY + 28, { width: pageWidth - 170 });
+
+        doc
+          .save()
+          .roundedRect(startX + pageWidth - 108, activityY + 46, 88, 20, 10)
+          .fill(estilo.color)
+          .restore();
+        doc
+          .fillColor('#ffffff')
+          .font('Helvetica-Bold')
+          .fontSize(8)
+          .text(estilo.badge.toUpperCase(), startX + pageWidth - 100, activityY + 52, { width: 72, align: 'center' });
+
+        doc
+          .fillColor('#64748b')
+          .font('Helvetica-Bold')
+          .fontSize(8)
+          .text('Usuario', startX + 20, activityY + 52)
+          .text('Fecha y hora', startX + 190, activityY + 52);
+
+        doc
+          .fillColor('#0f172a')
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .text(actividad.actor, startX + 20, activityY + 64, { width: 150 })
+          .text(fechaHora(actividad.fecha), startX + 190, activityY + 64, { width: 140 });
+
+        doc
+          .fillColor('#94a3b8')
+          .font('Helvetica-Bold')
+          .fontSize(8)
+          .text('Detalle', startX + 20, activityY + 82);
+
+        doc
+          .fillColor('#334155')
+          .font('Helvetica')
+          .fontSize(9)
+          .text(detalleTexto, startX + 20, activityY + 94, { width: pageWidth - 124, lineGap: 2 });
+
+        doc.y = activityY + cardHeight + 10;
+      });
+    }
+
+    doc.end();
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   completar,
   validarCompletado,
@@ -528,6 +1165,9 @@ module.exports = {
   sobreescribirFecha,
   agregarObservacion,
   subirArchivo,
+  subirEvidencia,
+  validarEvidencia,
   marcarNoAplica,
   obtenerEvidencia,
+  descargarReporteActividad,
 };

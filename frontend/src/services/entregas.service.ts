@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ApiResponse, Entrega } from '../types'
+import type { ApiResponse, Entrega, EvidenciaArchivo } from '../types'
 
 const base = (id: string) => `/procedimientos/${id}/entregas`
 
@@ -88,6 +88,23 @@ async function obtenerEvidencia(
   return URL.createObjectURL(response.data as Blob)
 }
 
+async function subirEvidencia(
+  procedimientoId: string,
+  entregaId: string,
+  archivo: File,
+  reemplazaEvidenciaId?: string
+): Promise<EvidenciaArchivo> {
+  const form = new FormData()
+  form.append('archivo', archivo)
+  if (reemplazaEvidenciaId) form.append('reemplazaEvidenciaId', reemplazaEvidenciaId)
+  const { data } = await api.post<ApiResponse<EvidenciaArchivo>>(
+    `${base(procedimientoId)}/${entregaId}/evidencia`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+  return data.data
+}
+
 async function validarEntrega(
   procedimientoId: string,
   entregaId: string,
@@ -100,4 +117,28 @@ async function validarEntrega(
   return data.data
 }
 
-export const entregasService = { listar, crear, actualizar, subirDocumento, proponerRecibida, validarEntrega, obtenerEvidencia }
+async function validarEvidencia(
+  procedimientoId: string,
+  entregaId: string,
+  archivoId: string,
+  respuesta: 'aceptar' | 'rechazar',
+  comentario?: string
+): Promise<EvidenciaArchivo> {
+  const { data } = await api.patch<ApiResponse<EvidenciaArchivo>>(
+    `${base(procedimientoId)}/${entregaId}/evidencia/${archivoId}/validar`,
+    { respuesta, comentario }
+  )
+  return data.data
+}
+
+export const entregasService = {
+  listar,
+  crear,
+  actualizar,
+  subirDocumento,
+  proponerRecibida,
+  validarEntrega,
+  obtenerEvidencia,
+  subirEvidencia,
+  validarEvidencia,
+}

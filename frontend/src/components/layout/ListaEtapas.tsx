@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { EtapaProcedimiento, Procedimiento } from '../../types'
+import type { EtapaProcedimiento, EvidenciaArchivo, Procedimiento } from '../../types'
 import { useAuth } from '../../hooks/useAuth'
 import { etapasService } from '../../services/etapas.service'
 import { mensajeDeError } from '../../services/api'
@@ -7,7 +7,7 @@ import { EstadoEtapaBadge } from '../ui/EstadoEtapaBadge'
 import { Modal } from '../ui/Modal'
 import { Spinner } from '../ui/Spinner'
 import { EmptyState } from '../ui/EmptyState'
-import { formatearFecha } from '../../utils/formato'
+import { formatearFecha, formatearFechaHora } from '../../utils/formato'
 
 const INPUT = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
 
@@ -23,10 +23,35 @@ type AccionModal =
   | { tipo: 'sobreescribir'; etapa: EtapaProcedimiento }
   | { tipo: 'completar'; etapa: EtapaProcedimiento }
   | { tipo: 'validar'; etapa: EtapaProcedimiento }
+  | { tipo: 'subirEvidencia'; etapa: EtapaProcedimiento; evidenciaOriginal?: EvidenciaArchivo }
+  | { tipo: 'validarEvidencia'; etapa: EtapaProcedimiento; evidencia: EvidenciaArchivo }
+  | { tipo: 'motivoEvidencia'; evidencia: EvidenciaArchivo }
   | { tipo: 'observacion'; etapa: EtapaProcedimiento }
   | { tipo: 'historial'; etapa: EtapaProcedimiento }
   | { tipo: 'noAplica'; etapa: EtapaProcedimiento }
   | null
+
+const ACEPTA_EVIDENCIA = 'application/pdf,image/png,image/jpeg,image/webp'
+
+const ETIQUETA_EVIDENCIA: Record<'pendiente' | 'validada' | 'rechazada', string> = {
+  pendiente: 'Pend. validación',
+  validada: 'Validada',
+  rechazada: 'Rechazada',
+}
+
+const CLASE_EVIDENCIA: Record<'pendiente' | 'validada' | 'rechazada', string> = {
+  pendiente: 'bg-amber-100 text-amber-800',
+  validada: 'bg-emerald-100 text-emerald-800',
+  rechazada: 'bg-rose-100 text-rose-800',
+}
+
+function nombreCompletoUsuario(nombre?: string, apellidos?: string) {
+  return [nombre, apellidos].filter(Boolean).join(' ')
+}
+
+function evidenciaSigueVigente(evidencia: EvidenciaArchivo, evidencias: EvidenciaArchivo[]) {
+  return !evidencias.some((candidata) => candidata.reemplazaEvidenciaId === evidencia._id)
+}
 
 export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
   const { usuario, tieneRol } = useAuth()
@@ -42,6 +67,8 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
   const [respuestaInput, setRespuestaInput] = useState<'aceptar' | 'rechazar' | ''>('')
   const [observacionInput, setObservacionInput] = useState('')
   const [archivoEvidencia, setArchivoEvidencia] = useState<File | null>(null)
+  const [comentarioEvidencia, setComentarioEvidencia] = useState('')
+  const [descargandoReporteId, setDescargandoReporteId] = useState<string | null>(null)
 
   function abrirModal(accion: AccionModal) {
     setModal(accion)
@@ -51,6 +78,7 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
     setRespuestaInput('')
     setObservacionInput('')
     setArchivoEvidencia(null)
+    setComentarioEvidencia('')
     const cont = document.getElementById('app-scroll')
     scrollYRef.current = cont ? cont.scrollTop : window.scrollY
   }
@@ -95,11 +123,17 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
     <>
       <div className="space-y-3">
         {etapas.map((etapa, idx) => {
+          const tieneEvidenciaBloqueante = etapa.evidencias?.some(
+            (ev) =>
+              evidenciaSigueVigente(ev, etapa.evidencias ?? []) &&
+              (ev.validacionEstado ?? 'pendiente') !== 'validada'
+          ) ?? false
           const estadosNoCompletables: string[] = ['completado', 'completado_propuesto']
           const puedeCompletar =
             (esAT || esAdministrador) &&
             !estadosNoCompletables.includes(etapa.estado) &&
-            !etapa.noAplica
+            !etapa.noAplica &&
+            !tieneEvidenciaBloqueante
           const puedeValidar =
             esGestor &&
             etapa.estado === 'completado_propuesto'
@@ -112,6 +146,8 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
             (esAT || esAdministrador) && etapa.estado === 'fecha_propuesta'
           const puedeSobreescribir = esGestor && etapa.estado === 'fecha_rechazada'
           const puedeObservacion = (esAT || esGestor) && !etapa.noAplica
+          const puedeSubirEvidencia = esAT && !etapa.noAplica
+          const puedeValidarEvidencia = tieneRol('administrador', 'adquisiciones')
           const puedeNoAplica =
             esGestor &&
             etapa.estado !== 'completado' &&
@@ -189,32 +225,118 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                           {etapa.completadoPor.nombre} {etapa.completadoPor.apellidos}
                         </span>
                       )}
+                      {etapa.propuestoPor && etapa.estado === 'completado_propuesto' && (
+                        <span>
+                          <span className="font-medium">Propuso conclusión:</span>{' '}
+                          {etapa.propuestoPor.nombre} {etapa.propuestoPor.apellidos}
+                          {etapa.propuestoEn ? ` · ${formatearFechaHora(etapa.propuestoEn)}` : ''}
+                        </span>
+                      )}
+                      {etapa.validadoPorConclusion && etapa.resultadoValidacionConclusion === 'aceptada' && (
+                        <span className="text-green-700">
+                          <span className="font-medium">Validó conclusión:</span>{' '}
+                          {nombreCompletoUsuario(etapa.validadoPorConclusion.nombre, etapa.validadoPorConclusion.apellidos)}
+                          {etapa.validadaEnConclusion ? ` · ${formatearFechaHora(etapa.validadaEnConclusion)}` : ''}
+                        </span>
+                      )}
+                      {etapa.validadoPorConclusion && etapa.resultadoValidacionConclusion === 'rechazada' && (
+                        <span className="text-rose-700">
+                          <span className="font-medium">Rechazó conclusión:</span>{' '}
+                          {nombreCompletoUsuario(etapa.validadoPorConclusion.nombre, etapa.validadoPorConclusion.apellidos)}
+                          {etapa.validadaEnConclusion ? ` · ${formatearFechaHora(etapa.validadaEnConclusion)}` : ''}
+                        </span>
+                      )}
+                      {etapa.motivoRechazoConclusion && (
+                        <span className="text-rose-700">
+                          <span className="font-medium">Motivo rechazo conclusión:</span> {etapa.motivoRechazoConclusion}
+                        </span>
+                      )}
                       {etapa.observaciones.length > 0 && (
                         <span className="text-blue-600">
                           {etapa.observaciones.length} observacion(es)
                         </span>
                       )}
                     </div>
-                    {etapa.evidencias && etapa.evidencias.length > 0 && (
+                    {etapa.evidencias && etapa.evidencias.filter((ev) => evidenciaSigueVigente(ev, etapa.evidencias ?? [])).length > 0 && (
                       <div className="flex gap-2 flex-wrap mt-1.5">
-                        {etapa.evidencias.map((ev) => (
-                          <button
-                            key={ev._id}
-                            onClick={async () => {
-                              try {
-                                const url = await etapasService.obtenerEvidencia(procedimiento._id, etapa._id, ev._id)
-                                window.open(url, '_blank')
-                              } catch { /* ignore */ }
-                            }}
-                            className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 underline"
-                            title="Ver evidencia"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                            </svg>
-                            {ev.nombre}
-                          </button>
-                        ))}
+                        {etapa.evidencias
+                          .filter((ev) => evidenciaSigueVigente(ev, etapa.evidencias ?? []))
+                          .map((ev) => {
+
+                          return (
+                          <div key={ev._id} className="flex w-full sm:w-88 max-w-full flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const url = await etapasService.obtenerEvidencia(procedimiento._id, etapa._id, ev._id)
+                                    window.open(url, '_blank')
+                                  } catch { /* ignore */ }
+                                }}
+                                className="inline-flex min-w-0 items-center gap-1 text-left text-xs text-blue-700 hover:text-blue-900 underline"
+                                title={ev.nombre}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                                </svg>
+                                <span className="min-w-0 wrap-break-word sm:truncate">{ev.nombre}</span>
+                              </button>
+                              {(ev.validacionEstado ?? 'pendiente') === 'rechazada' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => abrirModal({ tipo: 'motivoEvidencia', evidencia: ev })}
+                                  className={`inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${CLASE_EVIDENCIA.rechazada}`}
+                                >
+                                  Rechazada
+                                </button>
+                              ) : (
+                                <span
+                                  className={`inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${CLASE_EVIDENCIA[(ev.validacionEstado ?? 'pendiente') as 'pendiente' | 'validada' | 'rechazada']}`}
+                                >
+                                  {ETIQUETA_EVIDENCIA[(ev.validacionEstado ?? 'pendiente') as 'pendiente' | 'validada' | 'rechazada']}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500">
+                              {ev.cargadoPor && (
+                                <span>
+                                  <span className="font-medium">Cargó:</span>{' '}
+                                  {nombreCompletoUsuario(ev.cargadoPor.nombre, ev.cargadoPor.apellidos)}
+                                  {ev.cargadaEn ? ` · ${formatearFechaHora(ev.cargadaEn)}` : ''}
+                                </span>
+                              )}
+                              {ev.validadoPor && (
+                                <span>
+                                  <span className="font-medium">
+                                    {(ev.validacionEstado ?? 'pendiente') === 'rechazada' ? 'Rechazó:' : 'Validó:'}
+                                  </span>{' '}
+                                  {nombreCompletoUsuario(ev.validadoPor.nombre, ev.validadoPor.apellidos)}
+                                  {ev.validadaEn ? ` · ${formatearFechaHora(ev.validadaEn)}` : ''}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {puedeValidarEvidencia && (ev.validacionEstado ?? 'pendiente') === 'pendiente' && (
+                                <button
+                                  onClick={() => abrirModal({ tipo: 'validarEvidencia', etapa, evidencia: ev })}
+                                  className="text-xs font-medium text-emerald-700 hover:text-emerald-900"
+                                >
+                                  Validar evidencia
+                                </button>
+                              )}
+                              {esAT && (ev.validacionEstado ?? 'pendiente') === 'rechazada' && (
+                                <button
+                                  type="button"
+                                  onClick={() => abrirModal({ tipo: 'subirEvidencia', etapa, evidenciaOriginal: ev })}
+                                  className="text-xs font-medium text-indigo-700 hover:text-indigo-900"
+                                >
+                                  Reemplazar archivo
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -270,6 +392,14 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                       + Observacion
                     </button>
                   )}
+                  {puedeSubirEvidencia && (
+                    <button
+                      onClick={() => abrirModal({ tipo: 'subirEvidencia', etapa })}
+                      className="hidden md:inline-flex px-2.5 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 hover:bg-indigo-200 rounded transition-colors"
+                    >
+                      Subir evidencia
+                    </button>
+                  )}
                   {puedeNoAplica && (
                     <button
                       onClick={() => abrirModal({ tipo: 'noAplica', etapa })}
@@ -290,56 +420,102 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                       Historial
                     </button>
                   )}
+                  <button
+                    onClick={async () => {
+                      if (descargandoReporteId === etapa._id) return
+                      setDescargandoReporteId(etapa._id)
+                      try {
+                        await etapasService.descargarReporte(
+                          procedimiento._id,
+                          etapa._id,
+                          `SSA-${procedimiento.numeroProcedimiento || procedimiento._id}-etapa-${idx + 1}.pdf`
+                        )
+                      } finally {
+                        setDescargandoReporteId(null)
+                      }
+                    }}
+                    className="hidden md:inline-flex px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded transition-colors"
+                  >
+                    {descargandoReporteId === etapa._id ? 'Generando...' : 'Descargar reporte'}
+                  </button>
                   {/* Menú móvil para acciones secundarias */}
-                  {(puedeObservacion || puedeNoAplica || etapa.historialFechas.length > 0) && (
-                    <div className="md:hidden">
-                      <button
-                        onClick={() => setMenuAcciones((m) => (m === etapa._id ? null : etapa._id))}
-                        className="px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                      >
-                        Más
-                      </button>
-                      {menuAcciones === etapa._id && (
-                        <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-10">
-                          <div className="py-1">
-                            {puedeObservacion && (
-                              <button
-                                onClick={() => {
-                                  setMenuAcciones(null)
-                                  abrirModal({ tipo: 'observacion', etapa })
-                                }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                              >
-                                + Observacion
-                              </button>
-                            )}
-                            {puedeNoAplica && (
-                              <button
-                                onClick={() => {
-                                  setMenuAcciones(null)
-                                  abrirModal({ tipo: 'noAplica', etapa })
-                                }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                              >
-                                {etapa.noAplica ? 'Reactivar' : 'No aplica'}
-                              </button>
-                            )}
-                            {etapa.historialFechas.length > 0 && (
-                              <button
-                                onClick={() => {
-                                  setMenuAcciones(null)
-                                  abrirModal({ tipo: 'historial', etapa })
-                                }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                              >
-                                Historial
-                              </button>
-                            )}
-                          </div>
+                  <div className="md:hidden">
+                    <button
+                      onClick={() => setMenuAcciones((m) => (m === etapa._id ? null : etapa._id))}
+                      className="px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                    >
+                      Más
+                    </button>
+                    {menuAcciones === etapa._id && (
+                      <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                        <div className="py-1">
+                          {puedeObservacion && (
+                            <button
+                              onClick={() => {
+                                setMenuAcciones(null)
+                                abrirModal({ tipo: 'observacion', etapa })
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                            >
+                              + Observacion
+                            </button>
+                          )}
+                          {puedeSubirEvidencia && (
+                            <button
+                              onClick={() => {
+                                setMenuAcciones(null)
+                                abrirModal({ tipo: 'subirEvidencia', etapa })
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                            >
+                              Subir evidencia
+                            </button>
+                          )}
+                          {puedeNoAplica && (
+                            <button
+                              onClick={() => {
+                                setMenuAcciones(null)
+                                abrirModal({ tipo: 'noAplica', etapa })
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                            >
+                              {etapa.noAplica ? 'Reactivar' : 'No aplica'}
+                            </button>
+                          )}
+                          {etapa.historialFechas.length > 0 && (
+                            <button
+                              onClick={() => {
+                                setMenuAcciones(null)
+                                abrirModal({ tipo: 'historial', etapa })
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                            >
+                              Historial
+                            </button>
+                          )}
+                          <button
+                            onClick={async () => {
+                              setMenuAcciones(null)
+                              if (descargandoReporteId === etapa._id) return
+                              setDescargandoReporteId(etapa._id)
+                              try {
+                                await etapasService.descargarReporte(
+                                  procedimiento._id,
+                                  etapa._id,
+                                  `SSA-${procedimiento.numeroProcedimiento || procedimiento._id}-etapa-${idx + 1}.pdf`
+                                )
+                              } finally {
+                                setDescargandoReporteId(null)
+                              }
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                          >
+                            {descargandoReporteId === etapa._id ? 'Generando reporte...' : 'Descargar reporte'}
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -356,26 +532,13 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
             ¿Confirmas que la etapa <strong>"{modal.etapa.nombre}"</strong> ha sido concluida?
             El integrante de adquisiciones deberá validar esta acción antes de que se refleje como completada.
           </p>
-          <div className="flex flex-col gap-1 mb-4">
-            <label className="text-sm font-medium text-gray-700">
-              Cargar evidencia <span className="text-gray-400 font-normal">(PDF, opcional)</span>
-            </label>
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={(e) => setArchivoEvidencia(e.target.files?.[0] ?? null)}
-              className="text-sm text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200"
-            />
-            {archivoEvidencia && (
-              <p className="text-xs text-gray-500 mt-0.5">{archivoEvidencia.name}</p>
-            )}
-          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            La conclusión solo se puede proponer cuando no hay evidencia o toda la evidencia de la etapa ya fue validada.
+          </p>
           {errorModal && <p className="text-sm text-red-600 mb-3">{errorModal}</p>}
           <div className="flex gap-3">
             <button
-              onClick={() =>
-                ejecutar(() => etapasService.completar(procedimiento._id, modal.etapa._id, archivoEvidencia ?? undefined))
-              }
+              onClick={() => ejecutar(() => etapasService.completar(procedimiento._id, modal.etapa._id))}
               disabled={enviando}
               className="flex-1 py-2 bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
             >
@@ -426,6 +589,18 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
             </div>
           )}
           <p className="text-sm font-medium text-gray-800 mb-3">¿Se concluyó con la actividad?</p>
+          <div className="flex flex-col gap-1 mb-4">
+            <label className="text-sm font-medium text-gray-700">
+              Observaciones <span className="text-gray-400 font-normal">(obligatorias si rechazas)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={motivoInput}
+              onChange={(e) => setMotivoInput(e.target.value)}
+              className={INPUT}
+              placeholder="Motivo del rechazo o comentarios de validación..."
+            />
+          </div>
           {errorModal && <p className="text-sm text-red-600 mb-3">{errorModal}</p>}
           <div className="flex gap-3">
             <button
@@ -440,7 +615,14 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
             </button>
             <button
               onClick={() =>
-                ejecutar(() => etapasService.validarCompletado(procedimiento._id, modal.etapa._id, 'no'))
+                !motivoInput.trim()
+                  ? setErrorModal('Debes capturar el motivo de rechazo')
+                  : ejecutar(() => etapasService.validarCompletado(
+                    procedimiento._id,
+                    modal.etapa._id,
+                    'no',
+                    motivoInput.trim()
+                  ))
               }
               disabled={enviando}
               className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
@@ -449,6 +631,142 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
               No
             </button>
           </div>
+        </Modal>
+      )}
+
+      {modal?.tipo === 'subirEvidencia' && (
+        <Modal titulo={modal.evidenciaOriginal ? 'Reemplazar evidencia de etapa' : 'Subir evidencia de etapa'} onClose={cerrarModal}>
+          <p className="text-sm text-gray-600 mb-4">
+            {modal.evidenciaOriginal
+              ? <>Carga la versión corregida para reemplazar el archivo rechazado de la etapa <strong>"{modal.etapa.nombre}"</strong>.</>
+              : <>Carga una imagen o PDF como respaldo de la etapa <strong>"{modal.etapa.nombre}"</strong>.</>}
+          </p>
+          <div className="flex flex-col gap-1 mb-4">
+            <label className="text-sm font-medium text-gray-700">
+              Archivo <span className="text-gray-400 font-normal">(PDF o imagen)</span>
+            </label>
+            <input
+              type="file"
+              accept={ACEPTA_EVIDENCIA}
+              onChange={(e) => setArchivoEvidencia(e.target.files?.[0] ?? null)}
+              className="text-sm text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200"
+            />
+            {archivoEvidencia && <p className="text-xs text-gray-500 mt-0.5">{archivoEvidencia.name}</p>}
+          </div>
+          {errorModal && <p className="text-sm text-red-600 mb-3">{errorModal}</p>}
+          <div className="flex gap-3">
+            <button
+              onClick={() =>
+                archivoEvidencia
+                  ? ejecutar(() => etapasService.subirEvidencia(
+                    procedimiento._id,
+                    modal.etapa._id,
+                    archivoEvidencia,
+                    modal.evidenciaOriginal?._id
+                  ))
+                  : setErrorModal('Selecciona una imagen o un archivo PDF')
+              }
+              disabled={enviando}
+              className="flex-1 py-2 bg-indigo-700 hover:bg-indigo-600 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+            >
+              {enviando && <Spinner className="h-4 w-4 text-white" />}
+              Subir
+            </button>
+            <button onClick={cerrarModal} disabled={enviando} className="flex-1 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+              Cancelar
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {modal?.tipo === 'validarEvidencia' && (
+        <Modal titulo="Validar evidencia" onClose={cerrarModal}>
+          <p className="text-sm text-gray-600 mb-2">
+            Revisa la evidencia cargada para la etapa <strong>"{modal.etapa.nombre}"</strong>.
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const url = await etapasService.obtenerEvidencia(procedimiento._id, modal.etapa._id, modal.evidencia._id)
+                window.open(url, '_blank')
+              } catch { /* ignore */ }
+            }}
+            className="mb-4 inline-flex items-center gap-1 text-sm text-blue-700 underline hover:text-blue-900"
+          >
+            Abrir archivo: {modal.evidencia.nombre}
+          </button>
+          <div className="flex flex-col gap-1 mb-4">
+            <label className="text-sm font-medium text-gray-700">Comentario <span className="text-gray-400 font-normal">(obligatorio si rechazas)</span></label>
+            <textarea
+              rows={3}
+              value={comentarioEvidencia}
+              onChange={(e) => setComentarioEvidencia(e.target.value)}
+              className={INPUT}
+              placeholder="Observaciones de la validación..."
+            />
+          </div>
+          {errorModal && <p className="text-sm text-red-600 mb-3">{errorModal}</p>}
+          <div className="flex gap-3">
+            <button
+              onClick={() =>
+                ejecutar(() =>
+                  etapasService.validarEvidencia(
+                    procedimiento._id,
+                    modal.etapa._id,
+                    modal.evidencia._id,
+                    'aceptar',
+                    comentarioEvidencia || undefined
+                  )
+                )
+              }
+              disabled={enviando}
+              className="flex-1 py-2 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+            >
+              {enviando && <Spinner className="h-4 w-4 text-white" />}
+              Aceptar
+            </button>
+            <button
+              onClick={() =>
+                !comentarioEvidencia.trim()
+                  ? setErrorModal('Debes capturar el motivo de rechazo')
+                  : ejecutar(() =>
+                    etapasService.validarEvidencia(
+                      procedimiento._id,
+                      modal.etapa._id,
+                      modal.evidencia._id,
+                      'rechazar',
+                      comentarioEvidencia.trim()
+                    )
+                  )
+              }
+              disabled={enviando}
+              className="flex-1 py-2 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+            >
+              {enviando && <Spinner className="h-4 w-4 text-white" />}
+              Rechazar
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {modal?.tipo === 'motivoEvidencia' && (
+        <Modal titulo="Motivo de rechazo" onClose={cerrarModal}>
+          <p className="text-sm text-gray-600 mb-2">
+            Esta evidencia fue rechazada durante la validación.
+          </p>
+          {modal.evidencia.validadoPor && (
+            <p className="text-xs text-gray-500 mb-2">
+              Rechazó: {nombreCompletoUsuario(modal.evidencia.validadoPor.nombre, modal.evidencia.validadoPor.apellidos)}
+              {modal.evidencia.validadaEn ? ` · ${formatearFechaHora(modal.evidencia.validadaEn)}` : ''}
+            </p>
+          )}
+          <div className="rounded-md bg-rose-50 border border-rose-200 px-3 py-3 text-sm text-rose-800">
+            {modal.evidencia.comentarioValidacion ?? 'Sin motivo registrado.'}
+          </div>
+          <button onClick={cerrarModal} className="mt-4 w-full py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+            Cerrar
+          </button>
         </Modal>
       )}
 

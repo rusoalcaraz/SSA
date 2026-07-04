@@ -102,8 +102,14 @@ export interface EvidenciaArchivo {
   _id: string
   nombre: string
   ruta: string
+  mimeType?: 'application/pdf' | 'image/png' | 'image/jpeg' | 'image/webp'
+  reemplazaEvidenciaId?: string
   cargadoPor?: UsuarioResumen
   cargadaEn: string
+  validacionEstado?: 'pendiente' | 'validada' | 'rechazada'
+  validadoPor?: UsuarioResumen
+  validadaEn?: string
+  comentarioValidacion?: string
 }
 
 // -------------------------------------------------------
@@ -145,6 +151,10 @@ export interface EtapaProcedimiento {
   completadoEn?: string
   propuestoPor?: UsuarioResumen
   propuestoEn?: string
+  resultadoValidacionConclusion?: 'aceptada' | 'rechazada'
+  validadoPorConclusion?: UsuarioResumen
+  validadaEnConclusion?: string
+  motivoRechazoConclusion?: string
   evidencias?: EvidenciaArchivo[]
 }
 
