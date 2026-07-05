@@ -175,7 +175,13 @@ function dibujarDato(doc, x, y, width, height, { label, value, fill = '#ffffff',
     .fillColor('#0f172a')
     .font('Helvetica-Bold')
     .fontSize(13)
-    .text(value || '—', x + 14, y + 28, { width: width - 28, height: height - 34 });
+    .text(value || '—', x + 14, y + 28, { width: width - 28 });
+}
+
+function calcularAlturaDato(doc, width, value) {
+  doc.font('Helvetica-Bold').fontSize(13);
+  const valueH = doc.heightOfString(value || '—', { width: width - 28 });
+  return Math.max(64, 28 + valueH + 14);
 }
 
 function tieneEvidenciaBloqueante(etapa) {
@@ -879,8 +885,13 @@ async function descargarReporteActividad(req, res, next) {
     const startX = doc.page.margins.left;
     const cardGap = 12;
 
+    // --- ENCABEZADO (altura dinámica según largo del título) ---
     const headerY = doc.y;
-    dibujarTarjeta(doc, startX, headerY, pageWidth, 96, {
+    doc.font('Helvetica').fontSize(10);
+    const tituloH = doc.heightOfString(procedimiento.titulo, { width: pageWidth - 36, lineGap: 1 });
+    const headerHeight = Math.max(96, 68 + tituloH);
+
+    dibujarTarjeta(doc, startX, headerY, pageWidth, headerHeight, {
       fill: '#0f172a',
       stroke: '#0f172a',
       radius: 18,
@@ -890,7 +901,7 @@ async function descargarReporteActividad(req, res, next) {
       .fillColor('#bfdbfe')
       .font('Helvetica-Bold')
       .fontSize(9)
-      .text('BITÁCORA DE REVISIÓN DE ETAPA', startX + 18, headerY + 14, { width: pageWidth - 36 });
+      .text('BITÁCORA DE REVISIÓN DE ETAPA', startX + 18, headerY + 14, { width: pageWidth - 200 });
 
     doc
       .fillColor('#ffffff')
@@ -906,19 +917,27 @@ async function descargarReporteActividad(req, res, next) {
       .fillColor('#e2e8f0')
       .text(procedimiento.titulo, startX + 18, headerY + 56, { width: pageWidth - 36, lineGap: 1 });
 
+    // Badge de nombre de etapa (altura dinámica)
+    doc.font('Helvetica-Bold').fontSize(9);
+    const etapaBadgeNameH = doc.heightOfString(etapa.nombre, { width: 134 });
+    const etapaBadgeH = Math.max(24, etapaBadgeNameH + 10);
     doc
       .save()
-      .roundedRect(startX + pageWidth - 168, headerY + 18, 150, 24, 12)
+      .roundedRect(startX + pageWidth - 168, headerY + 14, 150, etapaBadgeH, 12)
       .fill('#1e293b')
       .restore();
     doc
       .fillColor('#f8fafc')
       .font('Helvetica-Bold')
       .fontSize(9)
-      .text(etapa.nombre, startX + pageWidth - 160, headerY + 25, { width: 134, align: 'center' });
+      .text(etapa.nombre, startX + pageWidth - 160, headerY + 14 + Math.floor((etapaBadgeH - etapaBadgeNameH) / 2), {
+        width: 134,
+        align: 'center',
+      });
 
-    doc.y = headerY + 112;
+    doc.y = headerY + headerHeight + 16;
 
+    // --- KPIs ---
     const kpiWidth = (pageWidth - cardGap * 3) / 4;
     const kpiHeight = 66;
     const kpiY = doc.y;
@@ -947,48 +966,74 @@ async function descargarReporteActividad(req, res, next) {
       fill: '#eff6ff',
     });
 
-    doc.y = kpiY + 82;
+    doc.y = kpiY + kpiHeight + 16;
 
+    // --- TARJETAS DE DATOS (alturas dinámicas) ---
     const dataWidth = (pageWidth - cardGap) / 2;
-    const dataHeight = 64;
+
     const dataRow1Y = doc.y;
-    dibujarDato(doc, startX, dataRow1Y, dataWidth, dataHeight, {
+    const h1a = calcularAlturaDato(doc, dataWidth, fechaHora(new Date()));
+    const h1b = calcularAlturaDato(doc, dataWidth, etapa.nombre);
+    const dataRow1H = Math.max(h1a, h1b);
+    dibujarDato(doc, startX, dataRow1Y, dataWidth, dataRow1H, {
       label: 'Generado',
       value: fechaHora(new Date()),
       fill: '#ffffff',
       stroke: '#e2e8f0',
     });
-    dibujarDato(doc, startX + dataWidth + cardGap, dataRow1Y, dataWidth, dataHeight, {
+    dibujarDato(doc, startX + dataWidth + cardGap, dataRow1Y, dataWidth, dataRow1H, {
       label: 'Etapa',
       value: etapa.nombre,
       fill: '#ffffff',
       stroke: '#e2e8f0',
     });
 
-    doc.y = dataRow1Y + dataHeight + cardGap;
+    doc.y = dataRow1Y + dataRow1H + cardGap;
 
     const dataRow2Y = doc.y;
-    dibujarDato(doc, startX, dataRow2Y, dataWidth, dataHeight, {
+    const asesorTitularNombre = nombreUsuario(procedimiento.asesorTitular);
+    const asesorSuplenteNombre = nombreUsuario(procedimiento.asesorSuplente);
+    const h2a = calcularAlturaDato(doc, dataWidth, asesorTitularNombre);
+    const h2b = calcularAlturaDato(doc, dataWidth, asesorSuplenteNombre);
+    const dataRow2H = Math.max(h2a, h2b);
+    dibujarDato(doc, startX, dataRow2Y, dataWidth, dataRow2H, {
       label: 'Asesor titular',
-      value: nombreUsuario(procedimiento.asesorTitular),
+      value: asesorTitularNombre,
       fill: '#ffffff',
       stroke: '#e2e8f0',
     });
-    dibujarDato(doc, startX + dataWidth + cardGap, dataRow2Y, dataWidth, dataHeight, {
+    dibujarDato(doc, startX + dataWidth + cardGap, dataRow2Y, dataWidth, dataRow2H, {
       label: 'Asesor suplente',
-      value: nombreUsuario(procedimiento.asesorSuplente),
+      value: asesorSuplenteNombre,
       fill: '#ffffff',
       stroke: '#e2e8f0',
     });
 
-    doc.y = dataRow2Y + dataHeight + 16;
+    doc.y = dataRow2Y + dataRow2H + 16;
 
+    // --- TARJETA DE ÚLTIMA REVISIÓN (altura dinámica) ---
     const tarjetaRevision = ultimaRevision
       ? estiloActividad(ultimaRevision.accion)
       : { color: '#92400e', fill: '#fffbeb', stroke: '#fcd34d', badge: 'Pendiente' };
 
+    const accionRevTexto = ultimaRevision
+      ? ultimaRevision.accion
+      : 'Aún no existe una validación o rechazo registrado';
+    const actorRevTexto = ultimaRevision
+      ? `${ultimaRevision.actor} · ${fechaHora(ultimaRevision.fecha)}`
+      : 'La etapa sigue en preparación y todavía no ha sido revisada por adquisiciones.';
+
+    doc.font('Helvetica-Bold').fontSize(16);
+    const accionRevH = doc.heightOfString(accionRevTexto, { width: pageWidth - 190 });
+    doc.font('Helvetica').fontSize(10);
+    const actorRevH = doc.heightOfString(actorRevTexto, { width: pageWidth - 32 });
+
+    const Y_REV_ACCION = 28;
+    const Y_REV_ACTOR = Y_REV_ACCION + accionRevH + 8;
+    const reviewHeight = Math.max(78, Y_REV_ACTOR + actorRevH + 14);
+
     const reviewY = doc.y;
-    dibujarTarjeta(doc, startX, reviewY, pageWidth, 78, {
+    dibujarTarjeta(doc, startX, reviewY, pageWidth, reviewHeight, {
       fill: tarjetaRevision.fill,
       stroke: tarjetaRevision.stroke,
       radius: 16,
@@ -997,44 +1042,35 @@ async function descargarReporteActividad(req, res, next) {
       .fillColor('#64748b')
       .font('Helvetica-Bold')
       .fontSize(8)
-      .text('ÚLTIMA REVISIÓN REGISTRADA', startX + 16, reviewY + 12, { width: pageWidth - 32 });
+      .text('ÚLTIMA REVISIÓN REGISTRADA', startX + 16, reviewY + 12, { width: pageWidth - 160 });
     doc
       .fillColor(tarjetaRevision.color)
       .font('Helvetica-Bold')
       .fontSize(16)
-      .text(
-        ultimaRevision ? ultimaRevision.accion : 'Aún no existe una validación o rechazo registrado',
-        startX + 16,
-        reviewY + 28,
-        { width: pageWidth - 190 }
-      );
+      .text(accionRevTexto, startX + 16, reviewY + Y_REV_ACCION, { width: pageWidth - 190 });
     doc
       .fillColor('#0f172a')
       .font('Helvetica')
       .fontSize(10)
-      .text(
-        ultimaRevision
-          ? `${ultimaRevision.actor} · ${fechaHora(ultimaRevision.fecha)}`
-          : 'La etapa sigue en preparación y todavía no ha sido revisada por adquisiciones.',
-        startX + 16,
-        reviewY + 50,
-        { width: pageWidth - 32 }
-      );
+      .text(actorRevTexto, startX + 16, reviewY + Y_REV_ACTOR, { width: pageWidth - 32 });
+
+    // Badge centrado verticalmente en el lado derecho
+    const badgeRevCentroY = reviewY + Math.floor(reviewHeight / 2) - 14;
     doc
       .save()
-      .roundedRect(startX + pageWidth - 144, reviewY + 20, 124, 28, 14)
+      .roundedRect(startX + pageWidth - 144, badgeRevCentroY, 124, 28, 14)
       .fill(tarjetaRevision.color)
       .restore();
     doc
       .fillColor('#ffffff')
       .font('Helvetica-Bold')
       .fontSize(9)
-      .text(ultimaRevision ? 'REVISADO' : 'PENDIENTE', startX + pageWidth - 136, reviewY + 29, {
+      .text(ultimaRevision ? 'REVISADO' : 'PENDIENTE', startX + pageWidth - 136, badgeRevCentroY + 9, {
         width: 108,
         align: 'center',
       });
 
-    doc.y = reviewY + 94;
+    doc.y = reviewY + reviewHeight + 16;
 
     doc
       .font('Helvetica-Bold')
@@ -1066,9 +1102,33 @@ async function descargarReporteActividad(req, res, next) {
         const estilo = estiloActividad(actividad.accion);
         const esUltimaActividad = ultimaActividad === actividad;
         const detalleTexto = actividad.detalle || 'Sin detalle adicional';
+
+        // Medir textos para calcular posiciones dinámicas
+        doc.font('Helvetica-Bold').fontSize(13);
+        const accionH = doc.heightOfString(actividad.accion, { width: pageWidth - 170 });
+
+        doc.font('Helvetica-Bold').fontSize(10);
+        const actorH = doc.heightOfString(actividad.actor, { width: 150 });
+        const fechaValH = doc.heightOfString(fechaHora(actividad.fecha), { width: 150 });
+        const valoresH = Math.max(actorH, fechaValH);
+
         doc.font('Helvetica').fontSize(9);
-        const detalleHeight = doc.heightOfString(detalleTexto, { width: pageWidth - 124 });
-        const cardHeight = Math.max(92, 74 + detalleHeight + (esUltimaActividad ? 16 : 0));
+        const detalleH = doc.heightOfString(detalleTexto, { width: pageWidth - 40, lineGap: 2 });
+
+        // Posiciones Y relativas al inicio de la tarjeta
+        const Y_NUM       = 12;
+        const Y_BADGE_CAT = 12;                        // badge de categoría (derecha)
+        const Y_ACCION    = 28;                        // texto de acción
+        const Y_LABELS    = Y_ACCION + accionH + 12;  // etiquetas "Usuario" / "Fecha y hora"
+        const Y_VALUES    = Y_LABELS + 13;             // valores actor / fecha
+        const Y_DET_LBL   = Y_VALUES + valoresH + 10; // etiqueta "Detalle"
+        const Y_DET       = Y_DET_LBL + 13;           // texto de detalle
+
+        // Badge "ÚLTIMA ACTIVIDAD" va justo abajo del badge de categoría si aplica
+        const Y_ULTI_BADGE = Y_BADGE_CAT + 26;
+
+        const minPorBadgeUlti = esUltimaActividad ? Y_ULTI_BADGE + 32 : 0;
+        const cardHeight = Math.max(Y_DET + detalleH + 14, minPorBadgeUlti);
 
         asegurarEspacio(doc, cardHeight + 10);
 
@@ -1079,73 +1139,88 @@ async function descargarReporteActividad(req, res, next) {
           radius: 16,
         });
 
+        // Barra de acento lateral izquierda
         doc
           .save()
           .roundedRect(startX, activityY, 8, cardHeight, 8)
           .fill(esUltimaActividad ? '#f97316' : estilo.color)
           .restore();
 
-        if (esUltimaActividad) {
-          doc
-            .save()
-            .roundedRect(startX + pageWidth - 132, activityY + 14, 112, 24, 12)
-            .fill('#f97316')
-            .restore();
-          doc
-            .fillColor('#ffffff')
-            .font('Helvetica-Bold')
-            .fontSize(8)
-            .text('ÚLTIMA ACTIVIDAD', startX + pageWidth - 124, activityY + 22, { width: 96, align: 'center' });
-        }
-
-        doc
-          .fillColor('#94a3b8')
-          .font('Helvetica-Bold')
-          .fontSize(8)
-          .text(`MOVIMIENTO ${index + 1}`, startX + 20, activityY + 12);
-
-        doc
-          .fillColor(estilo.color)
-          .font('Helvetica-Bold')
-          .fontSize(13)
-          .text(actividad.accion, startX + 20, activityY + 28, { width: pageWidth - 170 });
-
+        // Badge de categoría (arriba a la derecha)
         doc
           .save()
-          .roundedRect(startX + pageWidth - 108, activityY + 46, 88, 20, 10)
+          .roundedRect(startX + pageWidth - 108, activityY + Y_BADGE_CAT, 88, 20, 10)
           .fill(estilo.color)
           .restore();
         doc
           .fillColor('#ffffff')
           .font('Helvetica-Bold')
           .fontSize(8)
-          .text(estilo.badge.toUpperCase(), startX + pageWidth - 100, activityY + 52, { width: 72, align: 'center' });
+          .text(estilo.badge.toUpperCase(), startX + pageWidth - 100, activityY + Y_BADGE_CAT + 6, {
+            width: 72,
+            align: 'center',
+          });
 
-        doc
-          .fillColor('#64748b')
-          .font('Helvetica-Bold')
-          .fontSize(8)
-          .text('Usuario', startX + 20, activityY + 52)
-          .text('Fecha y hora', startX + 190, activityY + 52);
+        // Badge "ÚLTIMA ACTIVIDAD" debajo del badge de categoría
+        if (esUltimaActividad) {
+          doc
+            .save()
+            .roundedRect(startX + pageWidth - 112, activityY + Y_ULTI_BADGE, 92, 22, 11)
+            .fill('#f97316')
+            .restore();
+          doc
+            .fillColor('#ffffff')
+            .font('Helvetica-Bold')
+            .fontSize(8)
+            .text('ÚLTIMA ACTIVIDAD', startX + pageWidth - 104, activityY + Y_ULTI_BADGE + 7, {
+              width: 76,
+              align: 'center',
+            });
+        }
 
-        doc
-          .fillColor('#0f172a')
-          .font('Helvetica-Bold')
-          .fontSize(10)
-          .text(actividad.actor, startX + 20, activityY + 64, { width: 150 })
-          .text(fechaHora(actividad.fecha), startX + 190, activityY + 64, { width: 140 });
-
+        // Número de movimiento
         doc
           .fillColor('#94a3b8')
           .font('Helvetica-Bold')
           .fontSize(8)
-          .text('Detalle', startX + 20, activityY + 82);
+          .text(`MOVIMIENTO ${index + 1}`, startX + 20, activityY + Y_NUM);
 
+        // Texto de la acción
+        doc
+          .fillColor(estilo.color)
+          .font('Helvetica-Bold')
+          .fontSize(13)
+          .text(actividad.accion, startX + 20, activityY + Y_ACCION, { width: pageWidth - 170 });
+
+        // Etiquetas "Usuario" y "Fecha y hora"
+        doc
+          .fillColor('#64748b')
+          .font('Helvetica-Bold')
+          .fontSize(8)
+          .text('Usuario', startX + 20, activityY + Y_LABELS)
+          .text('Fecha y hora', startX + 210, activityY + Y_LABELS);
+
+        // Valores actor y fecha
+        doc
+          .fillColor('#0f172a')
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .text(actividad.actor, startX + 20, activityY + Y_VALUES, { width: 160 })
+          .text(fechaHora(actividad.fecha), startX + 210, activityY + Y_VALUES, { width: 160 });
+
+        // Etiqueta "Detalle"
+        doc
+          .fillColor('#94a3b8')
+          .font('Helvetica-Bold')
+          .fontSize(8)
+          .text('Detalle', startX + 20, activityY + Y_DET_LBL);
+
+        // Texto de detalle
         doc
           .fillColor('#334155')
           .font('Helvetica')
           .fontSize(9)
-          .text(detalleTexto, startX + 20, activityY + 94, { width: pageWidth - 124, lineGap: 2 });
+          .text(detalleTexto, startX + 20, activityY + Y_DET, { width: pageWidth - 40, lineGap: 2 });
 
         doc.y = activityY + cardHeight + 10;
       });
