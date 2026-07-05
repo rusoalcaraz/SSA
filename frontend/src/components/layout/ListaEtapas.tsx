@@ -23,6 +23,7 @@ type AccionModal =
   | { tipo: 'sobreescribir'; etapa: EtapaProcedimiento }
   | { tipo: 'completar'; etapa: EtapaProcedimiento }
   | { tipo: 'validar'; etapa: EtapaProcedimiento }
+  | { tipo: 'revertir'; etapa: EtapaProcedimiento }
   | { tipo: 'subirEvidencia'; etapa: EtapaProcedimiento; evidenciaOriginal?: EvidenciaArchivo }
   | { tipo: 'validarEvidencia'; etapa: EtapaProcedimiento; evidencia: EvidenciaArchivo }
   | { tipo: 'motivoEvidencia'; evidencia: EvidenciaArchivo }
@@ -119,6 +120,12 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
     return <EmptyState mensaje="No hay etapas registradas para este procedimiento." />
   }
 
+  // Índice de la última etapa completada (la más reciente por índice en el array)
+  const ultimaCompletadaIdx = etapas.reduce<number>(
+    (last, e, i) => (e.estado === 'completado' ? i : last),
+    -1
+  )
+
   return (
     <>
       <div className="space-y-3">
@@ -152,6 +159,10 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
             esGestor &&
             etapa.estado !== 'completado' &&
             etapa.estado !== 'completado_propuesto'
+          const puedeRevertir =
+            tieneRol('administrador', 'adquisiciones') &&
+            etapa.estado === 'completado' &&
+            idx === ultimaCompletadaIdx
 
           return (
             <div
@@ -360,6 +371,14 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                       Validar
                     </button>
                   )}
+                  {puedeRevertir && (
+                    <button
+                      onClick={() => abrirModal({ tipo: 'revertir', etapa })}
+                      className="px-2.5 py-1 text-xs font-medium text-rose-700 bg-rose-100 hover:bg-rose-200 rounded transition-colors"
+                    >
+                      Revertir conclusión
+                    </button>
+                  )}
                   {puedeProponer && (
                     <button
                       onClick={() => abrirModal({ tipo: 'proponer', etapa })}
@@ -491,6 +510,17 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
                               className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
                             >
                               Historial
+                            </button>
+                          )}
+                          {puedeRevertir && (
+                            <button
+                              onClick={() => {
+                                setMenuAcciones(null)
+                                abrirModal({ tipo: 'revertir', etapa })
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50"
+                            >
+                              Revertir conclusión
                             </button>
                           )}
                           <button
@@ -967,6 +997,36 @@ export function ListaEtapas({ procedimiento, etapas, onActualizar }: Props) {
             >
               {enviando && <Spinner className="h-4 w-4 text-white" />}
               Guardar
+            </button>
+            <button onClick={cerrarModal} disabled={enviando} className="flex-1 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+              Cancelar
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Revertir conclusión */}
+      {modal?.tipo === 'revertir' && (
+        <Modal titulo="Revertir conclusión de etapa" onClose={cerrarModal}>
+          <p className="text-sm text-gray-600 mb-3">
+            ¿Confirmas que deseas revertir la conclusión de la etapa{' '}
+            <strong>"{modal.etapa.nombre}"</strong>?
+          </p>
+          <p className="text-xs text-gray-500 mb-4">
+            La etapa volverá al estado <strong>activo</strong>. Si el procedimiento había avanzado
+            de sección por haberse completado todas sus etapas, también se revertirá ese avance.
+          </p>
+          {errorModal && <p className="text-sm text-red-600 mb-3">{errorModal}</p>}
+          <div className="flex gap-3">
+            <button
+              onClick={() =>
+                ejecutar(() => etapasService.revertirCompletado(procedimiento._id, modal.etapa._id))
+              }
+              disabled={enviando}
+              className="flex-1 py-2 bg-rose-700 hover:bg-rose-600 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
+            >
+              {enviando && <Spinner className="h-4 w-4 text-white" />}
+              Revertir
             </button>
             <button onClick={cerrarModal} disabled={enviando} className="flex-1 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
               Cancelar

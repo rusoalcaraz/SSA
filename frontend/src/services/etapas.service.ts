@@ -32,6 +32,14 @@ async function descargarReporte(procedimientoId: string, etapaId: string, nombre
   URL.revokeObjectURL(url)
 }
 
+async function revertirCompletado(procedimientoId: string, etapaId: string): Promise<EtapaProcedimiento> {
+  const { data } = await api.patch<ApiResponse<EtapaProcedimiento>>(
+    `${base(procedimientoId, etapaId)}/revertir-completado`,
+    {}
+  )
+  return data.data
+}
+
 async function subirEvidencia(
   procedimientoId: string,
   etapaId: string,
@@ -137,6 +145,7 @@ async function validarEvidencia(
 
 export const etapasService = {
   completar,
+  revertirCompletado,
   obtenerEvidencia,
   descargarReporte,
   subirEvidencia,

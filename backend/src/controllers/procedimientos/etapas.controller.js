@@ -344,6 +344,73 @@ async function validarCompletado(req, res, next) {
 }
 
 // -------------------------------------------------------
+// PATCH /:id/etapas/:etapaId/revertir-completado  — admin / adquisiciones
+// Deshace la conclusión de la última etapa completada en su sección.
+// -------------------------------------------------------
+async function revertirCompletado(req, res, next) {
+  try {
+    const { procedimiento, etapa, lista, seccion } = await resolverSeccion(
+      req.params.id,
+      req.params.etapaId
+    );
+
+    if (etapa.estado !== 'completado') {
+      throw crearError(409, 'ETAPA_NO_COMPLETADA', 'Solo se puede revertir una etapa con estado "completado"');
+    }
+
+    // Verificar que esta sea la última etapa completada en su lista
+    const hayPosteriorCompletada = lista.some(
+      (e) => String(e._id) !== String(etapa._id) && e.estado === 'completado' && e.orden > etapa.orden
+    );
+    if (hayPosteriorCompletada) {
+      throw crearError(
+        409,
+        'NO_ES_ULTIMA_COMPLETADA',
+        'Solo se puede revertir la última etapa completada. Existen etapas posteriores ya completadas'
+      );
+    }
+
+    // Revertir campos de conclusión
+    etapa.estado = 'activo';
+    etapa.completadoPor = undefined;
+    etapa.completadoEn = undefined;
+    etapa.fechaReal = undefined;
+    etapa.resultadoValidacionConclusion = undefined;
+    etapa.validadoPorConclusion = undefined;
+    etapa.validadaEnConclusion = undefined;
+    etapa.motivoRechazoConclusion = undefined;
+    etapa.propuestoPor = undefined;
+    etapa.propuestoEn = undefined;
+    etapa.historialConclusiones.push({
+      accion: 'revertida',
+      realizadoPor: req.usuario.id,
+    });
+
+    // Si el procedimiento avanzó de etapa por esta sección, revertirlo
+    const seccionActual = seccion === 'cronograma' ? 'cronograma' : 'hoja_de_trabajo';
+    const ordenEtapas = ['cronograma', 'hoja_de_trabajo', 'entregas', 'concluido', 'cancelado'];
+    if (ordenEtapas.indexOf(procedimiento.etapaActual) > ordenEtapas.indexOf(seccionActual)) {
+      procedimiento.etapaActual = seccionActual;
+    }
+
+    await procedimiento.save();
+
+    await auditLog.registrar({
+      usuarioId: req.usuario.id,
+      accion: 'REVERTIR_COMPLETADO_ETAPA',
+      recurso: 'etapa',
+      recursoId: etapa._id,
+      detalle: { procedimientoId: procedimiento._id, nombreEtapa: etapa.nombre },
+      req,
+    });
+
+    return ok(res, etapa, `La conclusión de "${etapa.nombre}" fue revertida`);
+  } catch (error) {
+    next(error);
+  }
+}
+
+// -------------------------------------------------------
 // PATCH /:id/etapas/:etapaId/proponer-fecha  — AC
 // -------------------------------------------------------
 async function proponerFecha(req, res, next) {
@@ -1235,6 +1302,7 @@ async function descargarReporteActividad(req, res, next) {
 module.exports = {
   completar,
   validarCompletado,
+  revertirCompletado,
   proponerFecha,
   responderFecha,
   sobreescribirFecha,

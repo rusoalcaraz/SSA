@@ -158,6 +158,12 @@ router.patch(
 );
 
 router.patch(
+  '/:id/etapas/:etapaId/revertir-completado',
+  checkRole(['administrador', 'adquisiciones']),
+  etapasCtrl.revertirCompletado
+);
+
+router.patch(
   '/:id/etapas/:etapaId/proponer-fecha',
   checkRole(['administrador', 'adquisiciones', 'subdirector']),
   etapasCtrl.proponerFecha
